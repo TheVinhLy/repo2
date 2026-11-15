@@ -10,7 +10,7 @@ function getManifest() {
     return JSON.stringify({
         "id": "cobephim",
         "name": "CôBe Phim",
-        "version": "1.0.3",
+        "version": "1.0.5",
         "description": "Xem phim lẻ, phim bộ tại cobephim.ink",
         "author": "TheVinhLy",
         "baseUrl": "https://cobephim.ink",
@@ -249,6 +249,52 @@ function parseEpisodeItems(html, slug) {
     return eps;
 }
 
+
+// Lấy danh sách tập từ các API cùng nguồn phát (KKPhim, NguonC)
+function fetchServersFromApis(slug) {
+    var out = [];
+    try {
+        var r1 = httpRequest("https://phimapi.com/phim/" + slug, { method: "GET", headers: { "User-Agent": UA } });
+        console.log("phimapi status=" + (r1 && r1.status));
+        var j1 = JSON.parse((r1 && r1.body) || "{}");
+        out = buildServers(j1.episodes || [], "KKPhim");
+    } catch (e1) { console.log("phimapi error: " + e1); }
+    if (out.length === 0) {
+        try {
+            var r2 = httpRequest("https://phim.nguonc.com/api/film/" + slug, { method: "GET", headers: { "User-Agent": UA } });
+            console.log("nguonc status=" + (r2 && r2.status));
+            var j2 = JSON.parse((r2 && r2.body) || "{}");
+            var mv = j2.movie || (j2.data && (j2.data.item || j2.data)) || {};
+            out = buildServers(mv.episodes || j2.episodes || [], "NguonC");
+        } catch (e2) { console.log("nguonc error: " + e2); }
+    }
+    console.log("api servers=" + out.length);
+    return out;
+}
+
+function buildServers(list, tag) {
+    var out = [];
+    if (!list || !list.length) return out;
+    for (var si = 0; si < list.length; si++) {
+        var sd = list[si].server_data || list[si].items || [];
+        var eps = [];
+        for (var ei = 0; ei < sd.length; ei++) {
+            var u = sd[ei].link_m3u8 || sd[ei].m3u8 || sd[ei].link_embed || sd[ei].embed;
+            if (!u) continue;
+            eps.push({
+                name: sd[ei].name || sd[ei].episode_name || ("Tập " + (ei + 1)),
+                slug: (sd[ei].slug || ("tap-" + (ei + 1))) + "-" + tag.toLowerCase() + si,
+                id: u
+            });
+        }
+        if (eps.length > 0) {
+            var nm = String(list[si].server_name || list[si].name || ("Server " + (si + 1))).replace(/^\s*#\s*/, "");
+            out.push({ name: nm + " (" + tag + ")", episodes: eps });
+        }
+    }
+    return out;
+}
+
 function parseMovieDetail(html, apiUrl, datasend) {
     try {
         html = html || "";
@@ -312,8 +358,15 @@ function parseMovieDetail(html, apiUrl, datasend) {
                 console.log("httpRequest watch page error: " + e);
             }
         }
-        if (episodes.length === 0) {
-            episodes.push({ name: "Full", slug: slug + "-full", id: watchUrl });
+        var servers = [];
+        if (episodes.length > 0) {
+            servers.push({ name: "CôBe Phim", episodes: episodes });
+        } else {
+            // Danh sách tập trên cobephim được tải bằng JS (HTML gốc không có) -> thử lần lượt API KKPhim, rồi NguonC
+            servers = fetchServersFromApis(slug);
+            if (servers.length === 0) {
+                servers.push({ name: "CôBe Phim", episodes: [{ name: "Full", slug: slug + "-full", id: watchUrl }] });
+            }
         }
 
         return JSON.stringify({
@@ -329,7 +382,7 @@ function parseMovieDetail(html, apiUrl, datasend) {
             country: countries.join(", "),
             casts: actors.join(", "),
             director: directors.join(", "),
-            servers: [{ name: "CôBe Phim", episodes: episodes }]
+            servers: servers
         });
     } catch (e) {
         console.log("parseMovieDetail error: " + e);
@@ -390,6 +443,15 @@ function parseDetailResponse(html, apiUrl, datasend) {
         html = html || "";
         var link = "", type = "";
 
+        // Episode id là link m3u8/mp4 trực tiếp (lấy từ API) -> phát luôn
+        var direct = (apiUrl || "").split("|")[0];
+        if (/^https?:\/\/.+\.(m3u8|mp4)(\?.*)?$/i.test(direct)) {
+            var dh = { "User-Agent": UA };
+            var dl = /\.m3u8/i.test(direct) ? pickVariant(direct) : direct;
+            if (WORKING_HEADERS) dh = WORKING_HEADERS;
+            return JSON.stringify({ url: dl, isEmbed: false, headers: dh, subtitles: [] });
+        }
+
         // 1) RSC payload: \"episode\":{...\"type\":\"m3u8\",\"link\":\"https://...\"}
         var m = html.match(/\\"type\\":\\"(\w+)\\",\\"link\\":\\"(https?:[^"\\]+)\\"/);
         if (m) { type = m[1]; link = m[2]; }
@@ -425,6 +487,7 @@ function parseDetailResponse(html, apiUrl, datasend) {
         link = link.replace(/\\u0026/g, "&").replace(/\\\//g, "/");
 
         var headers = { "User-Agent": UA, "Referer": BASE + "/", "Origin": BASE };
+        if (/streamc/i.test(apiUrl || "")) headers = { "User-Agent": UA, "Referer": "https://embed.streamc.xyz/" };
 
         if (type === "embed" || (!/\.m3u8|\.mp4/i.test(link) && type !== "m3u8")) {
             return JSON.stringify({ url: link, isEmbed: true, headers: headers, subtitles: [] });
