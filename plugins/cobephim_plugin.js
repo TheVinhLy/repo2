@@ -10,7 +10,7 @@ function getManifest() {
     return JSON.stringify({
         "id": "cobephim",
         "name": "CôBe Phim",
-        "version": "1.0.2",
+        "version": "1.0.3",
         "description": "Xem phim lẻ, phim bộ tại cobephim.ink",
         "author": "TheVinhLy",
         "baseUrl": "https://cobephim.ink",
@@ -233,8 +233,10 @@ function parseEpisodeItems(html, slug) {
         if (!/class="[^"]*\bitem\b/.test(tag)) continue;
         seen[href] = true;
         var name = "";
+        var es = inner.match(/class="ep-sort[^"]*"[^>]*>([^<]+)</);
+        if (es) name = stripTags(es[1]);
         var v = inner.match(/class="ver[^"]*"[\s\S]*?<span[^>]*>([^<]+)<\/span>/);
-        if (v) name = stripTags(v[1]);
+        if (!name && v) name = stripTags(v[1]);
         if (!name) {
             var tt = inner.match(/class="(?:ep-name|name|title|media-title)[^"]*"[^>]*>([\s\S]*?)<\/div>/);
             if (tt) name = stripTags(tt[1]);
@@ -287,24 +289,28 @@ function parseMovieDetail(html, apiUrl, datasend) {
         var actors = collectLinks(html, "dien-vien", 15);
         var directors = collectLinks(html, "dao-dien", 3);
 
-        // Danh sách tập: lấy từ trang xem phim (tap-latest)
+        // Danh sách tập: ưu tiên đọc ngay trên trang chi tiết, nếu không có thì lấy từ trang xem phim (tap-latest)
         var episodes = [];
         var watchUrl = BASE + "/phim/" + slug + "/tap-latest";
-        try {
-            var res = httpRequest(watchUrl, { method: "GET", headers: { "User-Agent": UA, "Referer": BASE + "/" } });
-            if (res && res.body) {
-                var items = parseEpisodeItems(res.body, slug);
-                for (var i = 0; i < items.length; i++) {
-                    episodes.push({
-                        name: items[i].name,
-                        slug: items[i].href.replace(/.*\/phim\//, "").replace(/\//g, "-"),
-                        id: items[i].href
-                    });
-                }
-                console.log("Episodes found: " + episodes.length);
+        var addEps = function (items) {
+            for (var i = 0; i < items.length; i++) {
+                episodes.push({
+                    name: items[i].name,
+                    slug: items[i].href.replace(/.*\/phim\//, "").replace(/\//g, "-"),
+                    id: items[i].href
+                });
             }
-        } catch (e) {
-            console.log("httpRequest watch page error: " + e);
+        };
+        addEps(parseEpisodeItems(html, slug));
+        console.log("Episodes on detail page: " + episodes.length);
+        if (episodes.length === 0) {
+            try {
+                var res = httpRequest(watchUrl, { method: "GET", headers: { "User-Agent": UA, "Referer": BASE + "/" } });
+                if (res && res.body) addEps(parseEpisodeItems(res.body, slug));
+                console.log("Episodes on watch page: " + episodes.length + " status=" + (res && res.status));
+            } catch (e) {
+                console.log("httpRequest watch page error: " + e);
+            }
         }
         if (episodes.length === 0) {
             episodes.push({ name: "Full", slug: slug + "-full", id: watchUrl });
@@ -390,6 +396,18 @@ function parseDetailResponse(html, apiUrl, datasend) {
         if (!link) {
             m = html.match(/"type":"(\w+)","link":"(https?:[^"\\]+)"/);
             if (m) { type = m[1]; link = m[2]; }
+        }
+        if (!link) {
+            // dạng khác: \"link\":\"...\" ở bất kỳ vị trí nào, chỉ nhận link không phải css/js
+            var all = html.match(/\\"link\\":\\"(https?:[^"\\]+)\\"/g) || [];
+            for (var q = 0; q < all.length; q++) {
+                var lk = all[q].match(/\\"link\\":\\"(https?:[^"\\]+)\\"/)[1];
+                if (/\.(css|js|png|jpg|webp|svg|ico)(\?|$)/i.test(lk)) continue;
+                link = lk;
+                var tm = html.substring(Math.max(0, html.indexOf(all[q]) - 200), html.indexOf(all[q])).match(/\\"type\\":\\"(\w+)\\"[^]*$/);
+                type = tm ? tm[1] : (/\.m3u8/i.test(lk) ? "m3u8" : "embed");
+                break;
+            }
         }
         // 2) Bất kỳ m3u8 nào trong trang
         if (!link) {
