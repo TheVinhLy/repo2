@@ -33,7 +33,7 @@
         {
             "id": "sieutamphim",
             "name": "Sưu Tầm Phim",
-            "version": "2.0.0",
+            "version": "2.0.1",
             "scriptUrl": "https://raw.githubusercontent.com/TheVinhLy/repo/main/plugins/sieutamphim_plugin.js",
             "iconUrl": "https://www.sieutamphim.art/wp-content/themes/sieutamphim/assets/logo.png"
         },
