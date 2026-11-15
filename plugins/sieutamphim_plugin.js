@@ -12,7 +12,7 @@ function getManifest() {
     return JSON.stringify({
         "id": "sieutamphim",
         "name": "Sưu Tầm Phim",
-        "version": "2.0.0",
+        "version": "2.0.1",
         "description": "Phim lồng tiếng, thuyết minh, tiếng Việt tại sieutamphim.art",
         "author": "TheVinhLy",
         "baseUrl": "https://www.sieutamphim.art",
@@ -122,8 +122,13 @@ function slugFromUrl(u) {
     return m ? m[1] : "";
 }
 
-function posterOf(slug) {
-    return BASE + "/wp-content/themes/sieutamphim/assets/posters/" + slug + ".webp";
+// Một số ảnh poster trong danh sách không tải được khi App tải hàng loạt -> qua proxy ảnh wsrv.nl (đặt false để tắt)
+var USE_IMAGE_PROXY = true;
+
+function posterOf(slug, proxied) {
+    var u = BASE + "/wp-content/themes/sieutamphim/assets/posters/" + slug + ".webp";
+    if (proxied && USE_IMAGE_PROXY) return "https://wsrv.nl/?url=" + encodeURIComponent(u) + "&w=300&output=webp";
+    return u;
 }
 
 function b64decode(str) {
@@ -194,7 +199,7 @@ function parseListResponse(html, apiUrl) {
             t = c.match(/class="tag-content"[^>]*>([\s\S]*?)<\/div>/);
             if (t) q = stripTags(t[1]);
 
-            movies.push({ id: slug, title: title, posterUrl: posterOf(slug), quality: q, slug: slug });
+            movies.push({ id: slug, title: title, posterUrl: posterOf(slug, true), quality: q, slug: slug });
         }
 
         var cur = 1;
