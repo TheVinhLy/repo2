@@ -10,7 +10,7 @@ function getManifest() {
     return JSON.stringify({
         "id": "cobephim",
         "name": "CôBe Phim",
-        "version": "1.0.0",
+        "version": "1.0.1",
         "description": "Xem phim lẻ, phim bộ tại cobephim.ink",
         "author": "TheVinhLy",
         "baseUrl": "https://cobephim.ink",
@@ -21,7 +21,7 @@ function getManifest() {
         "type": "MOVIE",
         "layoutType": "HORIZONTAL",
         "playerType": "exoplayer",
-        "debug": false
+        "debug": true
     });
 }
 
@@ -78,8 +78,8 @@ function getUrlDetail(slug, datasend) {
     return BASE + "/phim/" + slug;
 }
 
-function getUrlCategories() { return BASE + "/"; }
-function getUrlCountries() { return BASE + "/"; }
+function getUrlCategories() { return BASE + "/menu"; }
+function getUrlCountries() { return BASE + "/menu"; }
 function getUrlYears() { return BASE + "/"; }
 
 // =============================================================================
@@ -329,6 +329,38 @@ function parseMovieDetail(html, apiUrl, datasend) {
 // PARSE STREAM (trang xem phim -> m3u8)
 // =============================================================================
 
+function pickVariant(masterUrl) {
+    try {
+        var res = httpRequest(masterUrl, { method: "GET", headers: { "User-Agent": UA, "Referer": BASE + "/", "Origin": BASE } });
+        var body = (res && res.body) || "";
+        console.log("master status=" + (res && res.status) + " len=" + body.length);
+        console.log(body.substring(0, 600));
+        if (body.indexOf("#EXT-X-STREAM-INF") < 0) return masterUrl;
+        var lines = body.split(/\r?\n/), best = null;
+        for (var i = 0; i < lines.length; i++) {
+            if (lines[i].indexOf("#EXT-X-STREAM-INF") !== 0) continue;
+            var uri = ""; 
+            for (var j = i + 1; j < lines.length; j++) { if (lines[j] && lines[j].charAt(0) !== "#") { uri = lines[j].trim(); break; } }
+            if (!uri) continue;
+            var h = 0, bw = 0, codec = "";
+            var rm = lines[i].match(/RESOLUTION=(\d+)x(\d+)/); if (rm) h = parseInt(rm[2], 10);
+            var bm = lines[i].match(/BANDWIDTH=(\d+)/); if (bm) bw = parseInt(bm[1], 10);
+            var cm = lines[i].match(/CODECS="([^"]*)"/); if (cm) codec = cm[1];
+            if (/hvc1|hev1|av01|dvh1/i.test(codec)) continue; // tránh HEVC/AV1 -> dễ đen màn hình
+            if (h > 1080) continue;
+            if (!best || h > best.h || (h === best.h && bw > best.bw)) best = { uri: uri, h: h, bw: bw };
+        }
+        if (!best) return masterUrl;
+        var abs = best.uri;
+        if (abs.indexOf("http") !== 0) {
+            if (abs.charAt(0) === "/") abs = masterUrl.replace(/^(https?:\/\/[^\/]+).*/, "$1") + abs;
+            else abs = masterUrl.replace(/[^\/]*(\?.*)?$/, "") + abs;
+        }
+        console.log("picked " + best.h + "p -> " + abs);
+        return abs;
+    } catch (e) { console.log("pickVariant error: " + e); return masterUrl; }
+}
+
 function parseDetailResponse(html, apiUrl, datasend) {
     try {
         html = html || "";
@@ -361,6 +393,7 @@ function parseDetailResponse(html, apiUrl, datasend) {
         if (type === "embed" || (!/\.m3u8|\.mp4/i.test(link) && type !== "m3u8")) {
             return JSON.stringify({ url: link, isEmbed: true, headers: headers, subtitles: [] });
         }
+        if (/\.m3u8/i.test(link)) link = pickVariant(link);
         return JSON.stringify({ url: link, isEmbed: false, headers: headers, subtitles: [] });
     } catch (e) {
         console.log("parseDetailResponse error: " + e);
@@ -384,7 +417,19 @@ function parseEmbedResponse(html, sourceUrl) {
 // THỂ LOẠI / QUỐC GIA / NĂM (khai báo sẵn)
 // =============================================================================
 
+function parseMenuLinks(html, kind) {
+    var re = new RegExp('<a[^>]*href="(?:https://cobephim\\.ink)?/' + kind + '/([^"/?#]+)"[^>]*>([\\s\\S]*?)</a>', "g");
+    var out = [], seen = {}, m;
+    while ((m = re.exec(html || "")) !== null) {
+        var n = stripTags(m[2]);
+        if (n && !seen[m[1]]) { seen[m[1]] = true; out.push({ name: n, slug: m[1] }); }
+    }
+    return out;
+}
+
 function parseCategoriesResponse(html) {
+    var real = parseMenuLinks(html, "the-loai");
+    if (real.length > 0) return JSON.stringify(real);
     return JSON.stringify([
         { name: "Hành Động", slug: "hanh-dong" },
         { name: "Tình Cảm", slug: "tinh-cam" },
@@ -412,6 +457,8 @@ function parseCategoriesResponse(html) {
 }
 
 function parseCountriesResponse(html) {
+    var real = parseMenuLinks(html, "quoc-gia");
+    if (real.length > 0) return JSON.stringify(real);
     return JSON.stringify([
         { name: "Âu Mỹ", slug: "au-my" },
         { name: "Hàn Quốc", slug: "han-quoc" },
