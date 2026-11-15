@@ -1,449 +1,495 @@
-// ========================================================
-// SIÊU TẦM PHIM VAAPP PLUGIN (Code thêm từ bản của bạn ʚʚ Ƭ Ɗųƴ ɞɞ)
-// ========================================================
+// =============================================================================
+// Siêu Tầm Phim (https://www.sieutamphim.art) - Plugin v2.0.0
+// Web WordPress: danh sách /tu-khoa/<slug>/, phim /xem-phim/<slug>/,
+// tập /xem-phim/<slug>/tap-<số>-<server>-server
+// Player: iframe embed.php (base64) -> player-payload (base64 + rot13) -> abyss player
+// =============================================================================
 
-const BASE_URL = "https://www.sieutamphim.pro";
-
-// ========================================================
-// CONFIGURATION & METADATA
-// ========================================================
+var BASE = "https://www.sieutamphim.art";
+var UA = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36";
 
 function getManifest() {
     return JSON.stringify({
         "id": "sieutamphim",
         "name": "Sưu Tầm Phim",
-        "version": "1.1.0",
-        "baseUrl": "https://www.sieutamphim.pro",
-        "iconUrl": "https://www.sieutamphim.pro/posts/2024/06/cropped-logosieutamphim-192x192.png",
+        "version": "2.0.0",
+        "description": "Phim lồng tiếng, thuyết minh, tiếng Việt tại sieutamphim.art",
+        "author": "TheVinhLy",
+        "baseUrl": "https://www.sieutamphim.art",
+        "iconUrl": "https://www.sieutamphim.art/wp-content/themes/sieutamphim/assets/logo.png",
+        "referrer": "https://www.sieutamphim.art/",
         "isEnabled": true,
         "isAdult": false,
         "type": "MOVIE",
         "layoutType": "VERTICAL",
-        "playerType": "embed"
+        "playerType": "embed",
+        "debug": true
     });
 }
 
-function log(msg) {
-    if (typeof nativeLog !== 'undefined') {
-        nativeLog("[STPhim] " + msg);
-    }
-}
-
-function getSlugFromUrl(url) {
-    if (!url) return "";
-    var cleanUrl = url.split("?")[0];
-    var match = cleanUrl.match(/\/([^\/]+)\.html$/i);
-    if (match) return match[1];
-    var parts = cleanUrl.split("/");
-    var last = parts[parts.length - 1] || parts[parts.length - 2] || "";
-    return last.replace(".html", "");
-}
-
-// ========================================================
-// HOME
-// ========================================================
+// =============================================================================
+// HOME / CATEGORY / FILTER
+// =============================================================================
 
 function getHomeSections() {
     return JSON.stringify([
-        { slug: "phim-bo", title: "Phim Bộ Mới", type: "Horizontal" },
-        { slug: "phim-le", title: "Phim Lẻ Mới", type: "Horizontal" },
-        { slug: "long-tieng", title: "Phim Lồng Tiếng", type: "Horizontal" },
-        { slug: "thuyet-minh", title: "Phim Thuyết Minh", type: "Horizontal" },
-        { slug: "phim-moi", title: "Mới cập nhật", type: "Grid" }
+        { slug: "phim-moi", title: "Phim Mới", type: "Horizontal" },
+        { slug: "phim-bo", title: "Phim Bộ", type: "Horizontal" },
+        { slug: "phim-le", title: "Phim Lẻ", type: "Horizontal" },
+        { slug: "long-tieng", title: "Lồng Tiếng", type: "Horizontal" },
+        { slug: "thuyet-minh", title: "Thuyết Minh", type: "Horizontal" },
+        { slug: "tieng-viet", title: "Tiếng Việt", type: "Horizontal" },
+        { slug: "phu-de", title: "Phụ Đề", type: "Horizontal" }
     ]);
 }
 
-// ========================================================
-// CATEGORY
-// ========================================================
-
 function getPrimaryCategories() {
     return JSON.stringify([
-        { name: 'Phim Lẻ', slug: 'phim-le' },
-        { name: 'Phim Bộ', slug: 'phim-bo' },
-        { name: 'Hoạt Hình', slug: 'hoat-hinh' },
-        { name: 'Phim Việt Nam', slug: 'phim-viet-nam' },
-        { name: 'Phim Hàn Quốc', slug: 'phim-han-quoc' },
-        { name: 'Phim Trung Quốc', slug: 'phim-trung-quoc' },
-        { name: 'Phim Nhật Bản', slug: 'phim-nhat-ban' },
-        { name: 'Hành Động', slug: 'hanh-dong' },
-        { name: 'Viễn Tưởng', slug: 'vien-tuong' }
+        { name: "Phim Mới", slug: "phim-moi" },
+        { name: "Phim Bộ", slug: "phim-bo" },
+        { name: "Phim Lẻ", slug: "phim-le" },
+        { name: "Phim Điện Ảnh", slug: "phim-dien-anh" },
+        { name: "Lồng Tiếng", slug: "long-tieng" },
+        { name: "Thuyết Minh", slug: "thuyet-minh" },
+        { name: "Tiếng Việt", slug: "tieng-viet" },
+        { name: "Phụ Đề", slug: "phu-de" },
+        { name: "Phim Việt Nam", slug: "phim-viet-nam" },
+        { name: "Phim Hàn Quốc", slug: "phim-han-quoc" },
+        { name: "Phim Trung Quốc", slug: "phim-trung-quoc" },
+        { name: "Phim Nhật Bản", slug: "phim-nhat-ban" },
+        { name: "Phim Mỹ", slug: "phim-my" }
     ]);
 }
 
 function getFilterConfig() {
-    return JSON.stringify({
-        sort: [],
-        category: []
-    });
+    return JSON.stringify({});
 }
 
-// ========================================================
-// URL GENERATION
-// ========================================================
+// =============================================================================
+// URL
+// =============================================================================
 
 function getUrlList(slug, filtersJson) {
-    var filters = JSON.parse(filtersJson || "{}");
-    var page = filters.page || 1;
-    if (page === 1) return BASE_URL + "/search/label/" + slug;
-    return BASE_URL + "/search/label/" + slug + "/page/" + page;
+    var filters = {};
+    try { filters = JSON.parse(filtersJson || "{}"); } catch (e) {}
+    var page = parseInt(filters.page || 1, 10) || 1;
+    var tag = filters.category || filters.country || filters.year || slug || "phim-moi";
+    var url = BASE + "/tu-khoa/" + tag + "/";
+    if (page > 1) url += "page/" + page + "/";
+    return url;
 }
 
 function getUrlSearch(keyword, filtersJson) {
-    var filters = JSON.parse(filtersJson || "{}");
-    var page = filters.page || 1;
-    return BASE_URL + "/page/" + page + "?s=" + encodeURIComponent(keyword);
+    var filters = {};
+    try { filters = JSON.parse(filtersJson || "{}"); } catch (e) {}
+    var page = parseInt(filters.page || 1, 10) || 1;
+    var q = encodeURIComponent(keyword || "");
+    if (page > 1) return BASE + "/page/" + page + "/?s=" + q;
+    return BASE + "/?s=" + q;
 }
 
-function getUrlDetail(id) {
-    log("Resolving ID: " + id);
-    if (!id) return "";
-    if (id.startsWith("play-")) {
-        var resolved = id.replace("play-", "");
-        log("Resolved Stream ID to: " + resolved);
-        return resolved;
-    }
-    if (id.startsWith("http")) {
-        return id;
-    }
-    var wpUrl = BASE_URL + "/wp-json/wp/v2/posts?slug=" + encodeURIComponent(id);
-    log("Resolved Slug to WordPress REST API: " + wpUrl);
-    return wpUrl;
+// slug phim -> trang phim ; link đầy đủ (id tập) -> giữ nguyên
+function getUrlDetail(slug, datasend) {
+    if (!slug) return BASE;
+    if (/^https?:\/\//i.test(slug)) return slug;
+    return BASE + "/xem-phim/" + slug + "/";
 }
 
-// ========================================================
-// PARSE LIST
-// ========================================================
+function getUrlCategories() { return BASE + "/"; }
+function getUrlCountries() { return BASE + "/"; }
+function getUrlYears() { return BASE + "/"; }
 
-function parseListResponse(html) {
-    try {
-        var items = [];
-        var used = {};
-
-        // Tách từng item phim để tránh regex chạy sai giữa các item
-        var chunks = html.split('class="col post-item"');
-        for (var i = 1; i < chunks.length; i++) {
-            var blockHtml = chunks[i];
-
-            // link phim
-            var urlMatch = blockHtml.match(/href="([^"]+\.html)"/i);
-            if (!urlMatch) continue;
-
-            var url = urlMatch[1];
-            if (!url.startsWith("http")) url = BASE_URL + url;
-            if (used[url]) continue;
-            used[url] = true;
-
-            // title & poster
-            var titleMatch = blockHtml.match(/post-title[^>]*?>([\s\S]*?)<\/a>/i) || blockHtml.match(/alt="([^"]+)"/i);
-            var title = titleMatch ? decodeHtmlEntities(titleMatch[1].replace(/<[^>]*>/g, "")) : "Unknown";
-
-            var posterMatch = blockHtml.match(/data-src="([^"]+)"/i) || blockHtml.match(/src="([^"]+)"/i);
-            var poster = posterMatch ? posterMatch[1] : "";
-
-            if (poster.startsWith("//")) poster = "https:" + poster;
-
-            items.push({
-                id: getSlugFromUrl(url),
-                title: title,
-                posterUrl: poster
-            });
-        }
-
-        return JSON.stringify({
-            items: items,
-            pagination: { currentPage: 1, totalPages: 999 }
-        });
-    } catch (e) {
-        return JSON.stringify({ items: [], pagination: { currentPage: 1, totalPages: 1 } });
-    }
-}
-
-function parseSearchResponse(html) {
-    return parseListResponse(html);
-}
-
-// ========================================================
-// PARSE DETAIL
-// ========================================================
-
-function parseMovieDetail(html, url) {
-    // Nếu URL chứa 'server=', đây là link lấy stream, không phải lấy detail.
-    // Trả về kết quả rỗng để App không push thêm màn hình Detail.
-    if (url && url.includes("server=")) {
-        return JSON.stringify({ id: url, servers: [] });
-    }
-    try {
-        var isWpApi = url && url.includes("/wp-json/wp/v2/posts");
-        var title = "";
-        var poster = "";
-        var description = "";
-        var movieUrl = url;
-        var postId = "";
-        var contentHtml = html;
-
-        if (isWpApi) {
-            log("Parsing detail from WordPress REST API JSON response");
-            var posts = JSON.parse(html);
-            if (!posts || posts.length === 0) {
-                log("No WordPress post found for this slug");
-                return JSON.stringify({ servers: [] });
-            }
-            var post = posts[0];
-            title = post.title ? post.title.rendered : "";
-            movieUrl = post.link || url;
-            postId = String(post.id || "");
-            contentHtml = post.content ? post.content.rendered : "";
-            
-            description = post.excerpt ? post.excerpt.rendered.replace(/<[^>]*>/g, "").trim() : "";
-            
-            // Cải tiến lấy ảnh bìa Featured Image của WordPress API
-            if (post.jetpack_featured_media_url) {
-                poster = post.jetpack_featured_media_url;
-            } else if (post.featured_media_src_url) {
-                poster = post.featured_media_src_url;
-            } else if (post.yoast_head_json && post.yoast_head_json.og_image && post.yoast_head_json.og_image.length > 0) {
-                poster = post.yoast_head_json.og_image[0].url;
-            } else {
-                var imgMatch = contentHtml.match(/<img[^>]*src="([^"]+)"/i);
-                poster = imgMatch ? imgMatch[1] : "";
-            }
-            log("Parsed Title from WP API: " + title + " (PostID: " + postId + ")");
-        } else {
-            title = (html.match(/<meta property="og:title" content="([^"]+)"/i) || [])[1] || "";
-            
-            // Cải tiến regex để quét meta og:image linh hoạt bất kể thứ tự content/property
-            var ogImageMatch = html.match(/<meta[^>]+property="og:image"[^>]+content="([^"]+)"/i) || 
-                               html.match(/<meta[^>]+content="([^"]+)"[^>]+property="og:image"/i) ||
-                               html.match(/<meta[^>]+name="twitter:image"[^>]+content="([^"]+)"/i);
-            poster = ogImageMatch ? ogImageMatch[1] : "";
-            
-            if (!poster) {
-                var fallbackImgMatch = html.match(/<img[^>]+(?:src|data-src)="([^"]+\.(?:jpg|jpeg|png|webp)[^"]*)"/i);
-                if (fallbackImgMatch) poster = fallbackImgMatch[1];
-            }
-            
-            description = (html.match(/<meta property="og:description" content="([^"]+)"/i) || [])[1] || "";
-            movieUrl = (html.match(/<meta property="og:url" content="([^"]+)"/i) || [])[1] || url;
-            
-            var postIdMatch = html.match(/\/\?p=(\d+)/) || html.match(/post-id=["'](\d+)/) || html.match(/postId\s*:\s*(\d+)/) || html.match(/post-id:(\d+)/);
-            postId = postIdMatch ? postIdMatch[1] : "";
-            log("Parsed Title from HTML: " + title + " (PostID: " + postId + ")");
-        }
-
-        var slugId = getSlugFromUrl(movieUrl);
-        var servers = [];
-        var usedServer = {};
-
-        // Quét toàn bộ HTML/Content để tìm server
-        var groupRegex = /data-server=['"]([^'"]+)['"]/gi;
-        var m;
-        while ((m = groupRegex.exec(contentHtml)) !== null) {
-            var serverId = m[1];
-            if (usedServer[serverId]) continue;
-            usedServer[serverId] = true;
-
-            // Tìm block chứa data-episodes của server này (hỗ trợ bọc bởi cả nháy đơn lẫn nháy kép)
-            var epBlockRegex = new RegExp('data-server=["\']' + serverId + '["\'][\\s\\S]*?data-episodes=([\'"])([\\s\\S]*?)\\1', "i");
-            var epBlockMatch = contentHtml.match(epBlockRegex);
-
-            var epCount = 0;
-            if (epBlockMatch) {
-                var rawEpisodes = epBlockMatch[2];
-                // Sử dụng regex trích xuất các tập phim theo cú pháp {"value1","value2"} của web nguồn
-                var epRegex = /{"([^"]+)","([^"]+)"}/g;
-                var epMatch;
-                while ((epMatch = epRegex.exec(rawEpisodes)) !== null) {
-                    epCount++;
-                }
-            }
-
-            if (epCount === 0) epCount = 1;
-
-            var episodes = [];
-            for (var j = 1; j <= epCount; j++) {
-                episodes.push({
-                    // QUAN TRỌNG: Không dùng :// để App nhảy vào getUrlDetail
-                    id: "play-" + movieUrl + "?id=" + postId + "&server=" + encodeURIComponent(serverId) + "&tap=" + j,
-                    name: epCount === 1 ? "Full" : "Tập " + j,
-                    slug: "tap-" + j
-                });
-            }
-
-            servers.push({
-                name: serverId.toUpperCase(),
-                episodes: episodes
-            });
-        }
-
-        // Fallback chỉ dành cho phim lẻ thực sự có dữ liệu phát. Trước đây mọi
-        // bài viết không parse được data-server đều bị tạo server "Mặc định",
-        // khiến app ghép thành "Mặc định - Sưu Tầm Phim" dù không có nguồn phim.
-        if (servers.length === 0) {
-            var hasPlayableFallback = /data-episodes\s*=|<iframe\b|https?:\/\/[^"'\s]+\.m3u8/i.test(contentHtml);
-            if (hasPlayableFallback) {
-                servers.push({
-                    name: "HX",
-                    episodes: [{ id: "play-" + movieUrl + "?id=" + postId + "&server=hx&tap=1", name: "Full", slug: "full" }]
-                });
-            } else {
-                log("No playable server found; skip fallback for: " + movieUrl);
-            }
-        }
-
-        return JSON.stringify({
-            id: "",
-            title: decodeHtmlEntities(title.replace(" - Siêu Tầm Phim", "").trim()),
-            posterUrl: poster,
-            backdropUrl: poster,
-            description: description,
-            servers: servers,
-            quality: "HD",
-            status: "Hoàn thành"
-        });
-    } catch (e) {
-        log("Error in parseMovieDetail: " + e.message);
-        return JSON.stringify({ servers: [] });
-    }
-}
-
-// ========================================================
-// PARSE VIDEO (STREAM)
-// ========================================================
-
-function parseDetailResponse(html, url) {
-    log("Parsing Stream for: " + url);
-    try {
-        if (url.includes("?id=") && url.includes("&server=")) {
-            var server = (url.match(/server=([^&]+)/) || [])[1];
-            var tapStr = (url.match(/tap=(\d+)/) || [])[1];
-            var tap = parseInt(tapStr, 10);
-            
-            if (server && tap) {
-                // Tìm block chứa data-episodes của server tương ứng
-                var epBlockRegex = new RegExp('data-server=["\']' + server + '["\'][\\s\\S]*?data-episodes=([\'"])([\\s\\S]*?)\\1', "i");
-                var epBlockMatch = html.match(epBlockRegex);
-                
-                if (epBlockMatch) {
-                    var rawEpisodes = epBlockMatch[2];
-                    var epRegex = /{"([^"]+)","([^"]+)"}/g;
-                    var epMatch;
-                    var currentIndex = 1;
-                    while ((epMatch = epRegex.exec(rawEpisodes)) !== null) {
-                        if (currentIndex === tap) {
-                            var rawSrc = epMatch[1];
-                            // Giải mã XOR với khóa 42 để lấy link abyssplayer.com thật
-                            var decrypted = "";
-                            for (var i = 0; i < rawSrc.length; i++) {
-                                decrypted += String.fromCharCode(rawSrc.charCodeAt(i) ^ 42);
-                            }
-                            decrypted = decrypted.replace(/https?:\/\/(short\.ink|short\.icu)\//g, "https://abyssplayer.com/");
-                            log("Decrypted Stream URL: " + decrypted);
-                            
-                            if (decrypted.indexOf(".m3u8") !== -1) {
-                                return JSON.stringify({
-                                    url: decrypted,
-                                    mimeType: "application/x-mpegURL",
-                                    isEmbed: false
-                                });
-                            } else {
-                                var isAbyss = decrypted.indexOf("abyssplayer.com") !== -1 || 
-                                              decrypted.indexOf("abyss.to") !== -1 || 
-                                              decrypted.indexOf("short.ink") !== -1 || 
-                                              decrypted.indexOf("short.icu") !== -1;
-                                
-                                if (isAbyss) {
-                                    // Tạo trang HTML bọc iframe của abyssplayer để tránh redirect bypass sang abyss.to
-                                    var iframeHtml = '<html><body style="margin:0;padding:0;background:#000;"><iframe src="' + decrypted + '" style="width:100%;height:100%;border:none;" allowfullscreen></iframe></body></html>';
-                                    var base64Url = "data:text/html;base64," + base64Encode(iframeHtml);
-                                    
-                                    return JSON.stringify({
-                                        url: base64Url,
-                                        isEmbed: true,
-                                        headers: { "Referer": BASE_URL + "/" }
-                                    });
-                                } else {
-                                    // Các link khác (như blogger.com) trả về trực tiếp để tránh WebView chặn load data URL
-                                    return JSON.stringify({
-                                        url: decrypted,
-                                        isEmbed: true,
-                                        headers: { "Referer": BASE_URL + "/" }
-                                    });
-                                }
-                            }
-                        }
-                        currentIndex++;
-                    }
-                }
-            }
-        }
-
-        var iframeMatch = html.match(/<iframe[^>]*src="([^"]+)"/i);
-        if (iframeMatch) {
-            var embedUrl = iframeMatch[1];
-            log("Found iframe in HTML: " + embedUrl);
-            if (embedUrl.startsWith("//")) embedUrl = "https:" + embedUrl;
-            if (embedUrl === url || embedUrl.length < 5) {
-                return JSON.stringify({ url: url, isEmbed: true, headers: { "Referer": BASE_URL } });
-            }
-            return JSON.stringify({ url: embedUrl, headers: { "Referer": BASE_URL }, isEmbed: true });
-        }
-
-        var m3u8 = html.match(/(https?:\/\/[^"' ]+\.m3u8[^"' ]*)/i);
-        if (m3u8) {
-            log("Found direct M3U8: " + m3u8[1]);
-            return JSON.stringify({ url: m3u8[1], mimeType: "application/x-mpegURL", isEmbed: false });
-        }
-
-        log("No stream found, returning fallback URL");
-        return JSON.stringify({ url: url, isEmbed: true, headers: { "Referer": BASE_URL } });
-    } catch (e) { 
-        log("Error in parseDetailResponse: " + e.message);
-        return JSON.stringify({ url: "", isEmbed: false }); 
-    }
-}
-
-function parseEmbedResponse(html, sourceUrl) {
-    return parseDetailResponse(html, sourceUrl);
-}
-
-// ========================================================
+// =============================================================================
 // HELPERS
-// ========================================================
+// =============================================================================
 
-function decodeHtmlEntities(str) {
-    if (!str) return "";
-    return str
+function decodeEntities(s) {
+    return (s || "")
         .replace(/&#8211;/g, "-").replace(/&#8212;/g, "-")
         .replace(/&#8220;/g, '"').replace(/&#8221;/g, '"')
         .replace(/&#8216;/g, "'").replace(/&#8217;/g, "'")
         .replace(/&#038;/g, "&").replace(/&amp;/g, "&")
-        .replace(/&quot;/g, '"').replace(/&#39;/g, "'")
-        .replace(/&nbsp;/g, " ").trim();
+        .replace(/&quot;/g, '"').replace(/&#x27;/g, "'").replace(/&#39;/g, "'")
+        .replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&nbsp;/g, " ");
 }
 
-function base64Encode(str) {
-    var chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
-    var encoded = '';
+function stripTags(s) {
+    return decodeEntities((s || "").replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ").trim();
+}
+
+function slugFromUrl(u) {
+    var m = (u || "").match(/\/xem-phim\/([^\/?#"']+)/);
+    return m ? m[1] : "";
+}
+
+function posterOf(slug) {
+    return BASE + "/wp-content/themes/sieutamphim/assets/posters/" + slug + ".webp";
+}
+
+function b64decode(str) {
+    var chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    str = String(str || "").replace(/-/g, "+").replace(/_/g, "/").replace(/[^A-Za-z0-9+\/]/g, "");
+    var out = "", bits = 0, val = 0;
+    for (var i = 0; i < str.length; i++) {
+        val = (val << 6) | chars.indexOf(str.charAt(i));
+        bits += 6;
+        if (bits >= 8) {
+            bits -= 8;
+            out += String.fromCharCode((val >> bits) & 255);
+        }
+    }
+    return out;
+}
+
+function b64encode(str) {
+    var chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    var out = "";
     for (var i = 0; i < str.length; i += 3) {
         var c1 = str.charCodeAt(i);
         var c2 = i + 1 < str.length ? str.charCodeAt(i + 1) : NaN;
         var c3 = i + 2 < str.length ? str.charCodeAt(i + 2) : NaN;
-        
-        var byte1 = c1 >> 2;
-        var byte2 = ((c1 & 3) << 4) | (isNaN(c2) ? 0 : c2 >> 4);
-        var byte3 = isNaN(c2) ? 64 : ((c2 & 15) << 2) | (isNaN(c3) ? 0 : c3 >> 6);
-        var byte4 = isNaN(c3) ? 64 : c3 & 63;
-        
-        encoded += chars.charAt(byte1) + chars.charAt(byte2) + chars.charAt(byte3) + chars.charAt(byte4);
+        out += chars.charAt(c1 >> 2) + chars.charAt(((c1 & 3) << 4) | (isNaN(c2) ? 0 : c2 >> 4));
+        out += isNaN(c2) ? "=" : chars.charAt(((c2 & 15) << 2) | (isNaN(c3) ? 0 : c3 >> 6));
+        out += isNaN(c3) ? "=" : chars.charAt(c3 & 63);
     }
-    return encoded;
+    return out;
 }
 
-function parseCategoriesResponse(html) { return "[]"; }
-function parseCountriesResponse(html) { return "[]"; }
-function parseYearsResponse(html) { return "[]"; }
+function rot13(s) {
+    return s.replace(/[a-zA-Z]/g, function (c) {
+        var b = c <= "Z" ? 65 : 97;
+        return String.fromCharCode((c.charCodeAt(0) - b + 13) % 26 + b);
+    });
+}
 
-function getUrlCategories() { return ""; }
-function getUrlCountries() { return ""; }
-function getUrlYears() { return ""; }
+// =============================================================================
+// PARSE LIST / SEARCH
+// =============================================================================
+
+function parseListResponse(html, apiUrl) {
+    try {
+        html = html || "";
+        var start = html.indexOf('class="list-movies"');
+        var area = start >= 0 ? html.substring(start) : html;
+        var endIdx = area.indexOf('class="pagination"');
+        if (endIdx < 0) endIdx = area.indexOf('sidebar-section');
+        if (endIdx > 0) area = area.substring(0, endIdx);
+        var chunks = area.split(/<div class="item">/);
+        var movies = [], seen = {};
+        for (var i = 1; i < chunks.length; i++) {
+            var c = chunks[i];
+            var hm = c.match(/href="([^"]*\/xem-phim\/[^"]+)"/);
+            if (!hm) continue;
+            var slug = slugFromUrl(hm[1]);
+            if (!slug || seen[slug]) continue;
+            seen[slug] = true;
+
+            var title = "";
+            var t = c.match(/<h2>([\s\S]*?)<\/h2>/);
+            if (t) title = stripTags(t[1]);
+            if (!title) { t = c.match(/<img[^>]*alt="([^"]*)"/); if (t) title = decodeEntities(t[1]); }
+            if (!title) title = slug;
+
+            var q = "";
+            t = c.match(/class="tag-content"[^>]*>([\s\S]*?)<\/div>/);
+            if (t) q = stripTags(t[1]);
+
+            movies.push({ id: slug, title: title, posterUrl: posterOf(slug), quality: q, slug: slug });
+        }
+
+        var cur = 1;
+        var cm = html.match(/class="page-numbers current">(\d+)</);
+        if (cm) cur = parseInt(cm[1], 10);
+        var max = cur;
+        var m;
+        var re2 = /<a[^>]*class="page-numbers"[^>]*>(\d+)<\/a>/g;
+        while ((m = re2.exec(html)) !== null) { var n = parseInt(m[1], 10); if (n > max) max = n; }
+        var hasNext = /class="next page-numbers"/.test(html);
+        var total = hasNext ? Math.max(max, cur + 1) : max;
+
+        return JSON.stringify({
+            items: movies,
+            pagination: { currentPage: cur, totalPages: total, totalItems: movies.length, itemsPerPage: movies.length || 24 }
+        });
+    } catch (e) {
+        console.log("parseListResponse error: " + e);
+        return JSON.stringify({ items: [], pagination: { currentPage: 1, totalPages: 1, totalItems: 0, itemsPerPage: 0 } });
+    }
+}
+
+function parseSearchResponse(html, apiUrl) {
+    return parseListResponse(html, apiUrl);
+}
+
+// =============================================================================
+// PARSE DETAIL
+// =============================================================================
+
+// Từ trang xem phim: danh sách server + danh sách tập của server đang xem
+function parseWatchPage(html) {
+    var servers = [], eps = [], m;
+    var re = /<a[^>]*href="([^"]*\/tap-[^"]*-server\/?)"[^>]*class="server-dropdown-item[^"]*"[^>]*>([\s\S]*?)<\/a>/g;
+    while ((m = re.exec(html)) !== null) {
+        var nm = m[2].match(/class="server-item-name"[^>]*>([^<]+)</);
+        servers.push({ name: nm ? stripTags(nm[1]) : "Server", href: m[1], active: /is-active/.test(m[0]) });
+    }
+    var re2 = /<a[^>]*href="([^"]*\/tap-[^"]*-server\/?)"[^>]*class="ep-card-item[^"]*"[^>]*>([\s\S]*?)<\/a>/g;
+    while ((m = re2.exec(html)) !== null) {
+        var en = m[2].match(/class="ep-name"[^>]*>([^<]+)</);
+        eps.push({ name: en ? stripTags(en[1]) : "Tập", href: m[1] });
+    }
+    return { servers: servers, episodes: eps };
+}
+
+function fetchPage(url) {
+    try {
+        var r = httpRequest(url, { method: "GET", headers: { "User-Agent": UA, "Referer": BASE + "/" } });
+        return (r && r.body) ? r.body : "";
+    } catch (e) {
+        console.log("fetchPage error: " + e);
+        return "";
+    }
+}
+
+function absUrl(u) {
+    if (!u) return "";
+    if (u.indexOf("//") === 0) return "https:" + u;
+    if (u.charAt(0) === "/") return BASE + u;
+    return u;
+}
+
+function buildEpisodes(list, serverName) {
+    var out = [];
+    for (var i = 0; i < list.length; i++) {
+        var h = list[i].href;
+        var sm = h.match(/\/tap-(.*?)-([a-z0-9]+)-server/i);
+        var key = sm ? (sm[2] + "-" + sm[1]) : ("ep" + i);
+        out.push({ name: list[i].name, slug: key, id: h });
+    }
+    return out;
+}
+
+function parseMovieDetail(html, apiUrl, datasend) {
+    try {
+        html = html || "";
+        var slug = slugFromUrl(apiUrl);
+        if (!slug) { var cm = html.match(/rel="canonical" href="([^"]+)"/); if (cm) slug = slugFromUrl(cm[1]); }
+
+        var title = "";
+        var t = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/);
+        if (t) title = stripTags(t[1]);
+        if (!title) { t = html.match(/<meta property="og:title" content="([^"]+)"/); if (t) title = decodeEntities(t[1]); }
+
+        var poster = "";
+        t = html.match(/<meta property="og:image" content="([^"]+)"/);
+        if (t) poster = decodeEntities(t[1]).replace(/\?v=\d+$/, "");
+        if (!poster && slug) poster = posterOf(slug);
+
+        var desc = "";
+        t = html.match(/class="description-movie"[^>]*>([\s\S]*?)<\/div>/);
+        if (t) desc = t[1].replace(/<\/p>/g, "\n").replace(/<[^>]+>/g, " ");
+        desc = decodeEntities(desc).replace(/[ \t]+/g, " ").replace(/\n\s*/g, "\n").trim();
+
+        var status = "";
+        t = html.match(/class="badge-status-h1"[^>]*>([^<]+)</);
+        if (t) status = stripTags(t[1]);
+
+        var director = "", casts = "", year = "";
+        t = desc.match(/Đạo Diễn\s*:\s*([^\n]+)/i); if (t) director = t[1].trim();
+        t = desc.match(/Diễn Viên\s*:\s*([^\n]+)/i); if (t) casts = t[1].trim();
+        t = desc.match(/Năm Phát Hành\s*:\s*\(?(\d{4})/i); if (t) year = t[1];
+
+        var cats = [], country = "";
+        var tre = /<a[^>]*href="[^"]*\/tu-khoa\/([^\/"]+)\/"[^>]*class="tag-name"[^>]*>([^<]*)</g, m;
+        while ((m = tre.exec(html)) !== null) {
+            var tn = stripTags(m[2]);
+            if (/^\d{4}$/.test(tn)) { if (!year) year = tn; continue; }
+            if (/^phim-(my|uc|anh|nga|phap|an-do|singapore|thai-lan|viet-nam|dai-loan|han-quoc|nhat-ban|philippines|hong-kong|trung-quoc|tay-ban-nha|khac)$/.test(m[1])) {
+                if (!country) country = tn.replace(/^Phim\s+/i, "");
+                continue;
+            }
+            if (cats.length < 8) cats.push(tn);
+        }
+
+        // Link xem phim đầu tiên
+        var watch = "";
+        t = html.match(/class="watch-movie"[^>]*>\s*<a[^>]*href="([^"]+)"/);
+        if (t) watch = decodeEntities(t[1]);
+        if (!watch) { t = html.match(/href="([^"]*\/xem-phim\/[^"\/]+\/tap-[^"]*-server\/?)"/); if (t) watch = t[1]; }
+
+        var servers = [];
+        if (watch) {
+            var wHtml = fetchPage(watch);
+            var info = parseWatchPage(wHtml);
+            console.log("watch servers=" + info.servers.length + " eps=" + info.episodes.length);
+            if (info.servers.length === 0 && info.episodes.length > 0) {
+                servers.push({ name: "Server", episodes: buildEpisodes(info.episodes) });
+            }
+            for (var si = 0; si < info.servers.length && si < 5; si++) {
+                var sv = info.servers[si];
+                var list = info.episodes;
+                if (!sv.active) {
+                    var h2 = fetchPage(sv.href);
+                    list = parseWatchPage(h2).episodes;
+                }
+                if (list.length === 0) list = [{ name: "Xem phim", href: sv.href }];
+                servers.push({ name: sv.name, episodes: buildEpisodes(list) });
+            }
+            if (servers.length === 0) {
+                servers.push({ name: "Server", episodes: [{ name: "Xem phim", slug: "full", id: watch }] });
+            }
+        }
+
+        return JSON.stringify({
+            id: slug,
+            title: title,
+            posterUrl: poster,
+            backdropUrl: poster,
+            description: desc,
+            year: year,
+            quality: status,
+            status: status,
+            category: cats.join(", "),
+            country: country,
+            casts: casts,
+            director: director,
+            servers: servers
+        });
+    } catch (e) {
+        console.log("parseMovieDetail error: " + e);
+        return "{}";
+    }
+}
+
+// =============================================================================
+// STREAM
+// =============================================================================
+
+// Bước 1: trang xem tập -> lấy link embed.php (đã mã hóa base64 trong script)
+function parseDetailResponse(html, apiUrl, datasend) {
+    try {
+        html = html || "";
+        var page = (apiUrl || "").split("|")[0];
+        var headers = { "User-Agent": UA, "Referer": page || (BASE + "/") };
+
+        if (page.indexOf("embed.php") >= 0 || /name="player-payload"/.test(html)) {
+            return parseEmbedResponse(html, apiUrl);
+        }
+
+        var m = html.match(/encodedUrl\s*=\s*"([A-Za-z0-9+\/=_-]+)"/);
+        if (m) {
+            var path = b64decode(m[1]);
+            console.log("embed path=" + path);
+            if (path) {
+                var u = absUrl(path);
+                return JSON.stringify({ url: u, isEmbed: true, headers: headers, subtitles: [] });
+            }
+        }
+
+        // Dự phòng: iframe có src thật / m3u8 trong trang
+        m = html.match(/<iframe[^>]*id="player-iframe"[^>]*\ssrc="(https?:[^"]+)"/);
+        if (m) return JSON.stringify({ url: decodeEntities(m[1]), isEmbed: true, headers: headers, subtitles: [] });
+        m = html.match(/(https?:\/\/[^"'\\\s<>]+\.m3u8[^"'\\\s<>]*)/);
+        if (m) return JSON.stringify({ url: m[1], isEmbed: false, headers: headers, subtitles: [] });
+
+        console.log("Không tìm thấy player trong trang");
+        return "{}";
+    } catch (e) {
+        console.log("parseDetailResponse error: " + e);
+        return "{}";
+    }
+}
+
+// Bước 2: embed.php -> player-payload (base64 -> rot13 -> link player thật)
+function parseEmbedResponse(html, sourceUrl) {
+    try {
+        html = html || "";
+        var m = html.match(/name="player-payload"\s+content="([^"]+)"/) || html.match(/data-payload="([^"]+)"/);
+        var real = "";
+        if (m) real = rot13(b64decode(m[1]));
+        console.log("player payload -> " + real);
+
+        if (!real) {
+            var ifm = html.match(/<iframe[^>]*\ssrc="(https?:[^"]+)"/);
+            if (ifm) real = decodeEntities(ifm[1]);
+        }
+        if (!real) {
+            var m3 = html.match(/(https?:\/\/[^"'\\\s<>]+\.m3u8[^"'\\\s<>]*)/);
+            if (m3) real = m3[1];
+        }
+        if (!real) return "{}";
+
+        var headers = { "User-Agent": UA, "Referer": BASE + "/" };
+        if (/\.m3u8|\.mp4/i.test(real)) {
+            return JSON.stringify({ url: real, isEmbed: false, headers: headers, subtitles: [] });
+        }
+
+        // short.ink / short.icu -> abyssplayer; bọc trong iframe để tránh bị chuyển hướng
+        real = real.replace(/https?:\/\/(short\.ink|short\.icu)\//, "https://abyssplayer.com/");
+        if (/abyss/i.test(real)) {
+            var wrap = '<html><body style="margin:0;padding:0;background:#000;"><iframe src="' + real +
+                '" style="width:100%;height:100%;border:none;" allowfullscreen></iframe></body></html>';
+            return JSON.stringify({
+                url: "data:text/html;base64," + b64encode(wrap),
+                isEmbed: true,
+                headers: headers,
+                subtitles: []
+            });
+        }
+        return JSON.stringify({ url: real, isEmbed: true, headers: headers, subtitles: [] });
+    } catch (e) {
+        console.log("parseEmbedResponse error: " + e);
+        return "{}";
+    }
+}
+
+// =============================================================================
+// THỂ LOẠI / QUỐC GIA / NĂM (theo menu trên web)
+// =============================================================================
+
+function parseCategoriesResponse(html) {
+    return JSON.stringify([
+        { name: "Phim Bộ", slug: "phim-bo" },
+        { name: "Phim Lẻ", slug: "phim-le" },
+        { name: "Phim Mới", slug: "phim-moi" },
+        { name: "Phim Điện Ảnh", slug: "phim-dien-anh" },
+        { name: "Lồng Tiếng", slug: "long-tieng" },
+        { name: "Thuyết Minh", slug: "thuyet-minh" },
+        { name: "Tiếng Việt", slug: "tieng-viet" },
+        { name: "Phụ Đề", slug: "phu-de" },
+        { name: "Series", slug: "series" },
+        { name: "Movie", slug: "movie" },
+        { name: "Bản Quyền", slug: "ban-quyen" },
+        { name: "VietSub", slug: "vietsub" },
+        { name: "VietDub", slug: "vietdub" },
+        { name: "Voice-Over", slug: "voice-over" }
+    ]);
+}
+
+function parseCountriesResponse(html) {
+    return JSON.stringify([
+        { name: "Phim Mỹ", slug: "phim-my" },
+        { name: "Phim Úc", slug: "phim-uc" },
+        { name: "Phim Anh", slug: "phim-anh" },
+        { name: "Phim Nga", slug: "phim-nga" },
+        { name: "Phim Pháp", slug: "phim-phap" },
+        { name: "Phim Ấn Độ", slug: "phim-an-do" },
+        { name: "Phim Singapore", slug: "phim-singapore" },
+        { name: "Phim Thái Lan", slug: "phim-thai-lan" },
+        { name: "Phim Việt Nam", slug: "phim-viet-nam" },
+        { name: "Phim Đài Loan", slug: "phim-dai-loan" },
+        { name: "Phim Hàn Quốc", slug: "phim-han-quoc" },
+        { name: "Phim Nhật Bản", slug: "phim-nhat-ban" },
+        { name: "Phim Philippines", slug: "phim-philippines" },
+        { name: "Phim Hồng Kông", slug: "phim-hong-kong" },
+        { name: "Phim Trung Quốc", slug: "phim-trung-quoc" },
+        { name: "Phim Tây Ban Nha", slug: "phim-tay-ban-nha" },
+        { name: "Phim Khác", slug: "phim-khac" }
+    ]);
+}
+
+function parseYearsResponse(html) {
+    var out = [];
+    for (var y = 2026; y >= 2011; y--) out.push({ name: String(y), slug: String(y) });
+    return JSON.stringify(out);
+}
