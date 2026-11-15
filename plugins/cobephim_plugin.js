@@ -10,7 +10,7 @@ function getManifest() {
     return JSON.stringify({
         "id": "cobephim",
         "name": "CôBe Phim",
-        "version": "1.0.1",
+        "version": "1.0.2",
         "description": "Xem phim lẻ, phim bộ tại cobephim.ink",
         "author": "TheVinhLy",
         "baseUrl": "https://cobephim.ink",
@@ -53,9 +53,15 @@ function getUrlList(slug, filtersJson) {
     var page = parseInt(filters.page || 1, 10) || 1;
     var path = slug || "phim-le";
 
-    // Lọc theo thể loại / quốc gia (nếu App gửi kèm)
+    // App gọi getUrlList("tinh-cam") khi bấm chip thể loại -> tự suy ra đường dẫn
     if (filters.category) path = "the-loai/" + filters.category;
     else if (filters.country) path = "quoc-gia/" + filters.country;
+    else if (path.indexOf("/") < 0 && ["phim-le", "phim-bo"].indexOf(path) < 0) {
+        var countrySlugs = ["au-my", "anh", "trung-quoc", "viet-nam", "phap", "hong-kong", "han-quoc", "nhat-ban",
+            "thai-lan", "dai-loan", "nga", "an-do", "indonesia", "philippines", "duc", "y", "tay-ban-nha", "canada",
+            "uc", "quoc-gia-khac"];
+        path = (countrySlugs.indexOf(path) >= 0 ? "quoc-gia/" : "the-loai/") + path;
+    }
 
     var url = BASE + "/" + path;
     if (page > 1) url += "?page=" + page;
@@ -329,11 +335,23 @@ function parseMovieDetail(html, apiUrl, datasend) {
 // PARSE STREAM (trang xem phim -> m3u8)
 // =============================================================================
 
+var WORKING_HEADERS = null;
+
 function pickVariant(masterUrl) {
     try {
-        var res = httpRequest(masterUrl, { method: "GET", headers: { "User-Agent": UA, "Referer": BASE + "/", "Origin": BASE } });
-        var body = (res && res.body) || "";
-        console.log("master status=" + (res && res.status) + " len=" + body.length);
+        var sets = [
+            { "User-Agent": UA, "Referer": BASE + "/", "Origin": BASE },
+            { "User-Agent": UA },
+            { "User-Agent": UA, "Referer": BASE + "/" }
+        ];
+        var res = null, body = "";
+        for (var k = 0; k < sets.length; k++) {
+            try { res = httpRequest(masterUrl, { method: "GET", headers: sets[k] }); } catch (e1) { res = null; }
+            body = (res && res.body) || "";
+            console.log("try headers#" + k + " status=" + (res && res.status) + " len=" + body.length);
+            if (res && res.status === 200 && body.indexOf("#EXTM3U") >= 0) { WORKING_HEADERS = sets[k]; break; }
+            body = "";
+        }
         console.log(body.substring(0, 600));
         if (body.indexOf("#EXT-X-STREAM-INF") < 0) return masterUrl;
         var lines = body.split(/\r?\n/), best = null;
@@ -393,7 +411,7 @@ function parseDetailResponse(html, apiUrl, datasend) {
         if (type === "embed" || (!/\.m3u8|\.mp4/i.test(link) && type !== "m3u8")) {
             return JSON.stringify({ url: link, isEmbed: true, headers: headers, subtitles: [] });
         }
-        if (/\.m3u8/i.test(link)) link = pickVariant(link);
+        if (/\.m3u8/i.test(link)) { link = pickVariant(link); if (WORKING_HEADERS) headers = WORKING_HEADERS; }
         return JSON.stringify({ url: link, isEmbed: false, headers: headers, subtitles: [] });
     } catch (e) {
         console.log("parseDetailResponse error: " + e);
