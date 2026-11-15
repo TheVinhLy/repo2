@@ -132,9 +132,16 @@
         {
             "id": "hqporner",
             "name": "HQPorner",
-            "version": "1.0.7",
+            "version": "1.0.8",
             "scriptUrl": "https://raw.githubusercontent.com/TheVinhLy/repo/main/plugins/hqporner_plugin.js",
             "iconUrl": "https://raw.githubusercontent.com/TheVinhLy/repo/main/plugins/hqporner.ico"
+        },
+        {
+            "id": "cobephim",
+            "name": "CôBe Phim",
+            "version": "1.0.0",
+            "scriptUrl": "https://raw.githubusercontent.com/TheVinhLy/repo/main/plugins/cobephim_plugin.js",
+            "iconUrl": "https://raw.githubusercontent.com/TheVinhLy/repo/main/plugins/cobephim.ico"
         }
     ]
 }
