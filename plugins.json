@@ -33,10 +33,9 @@
         {
             "id": "sieutamphim",
             "name": "Sưu Tầm Phim",
-            "version": "1.1.0",
-            "openvax": "false",
+            "version": "2.0.0",
             "scriptUrl": "https://raw.githubusercontent.com/TheVinhLy/repo/main/plugins/sieutamphim_plugin.js",
-            "iconUrl": "https://www.sieutamphim.pro/posts/2024/06/cropped-logosieutamphim-192x192.png"
+            "iconUrl": "https://www.sieutamphim.art/wp-content/themes/sieutamphim/assets/logo.png"
         },
         {
             "id": "phimhdcs",
