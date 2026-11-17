@@ -12,7 +12,7 @@ function getManifest() {
     return JSON.stringify({
         "id": "sieutamphim",
         "name": "Sưu Tầm Phim",
-        "version": "2.0.1",
+        "version": "2.0.2",
         "description": "Phim lồng tiếng, thuyết minh, tiếng Việt tại sieutamphim.art",
         "author": "TheVinhLy",
         "baseUrl": "https://www.sieutamphim.art",
@@ -122,12 +122,12 @@ function slugFromUrl(u) {
     return m ? m[1] : "";
 }
 
-// Một số ảnh poster trong danh sách không tải được khi App tải hàng loạt -> qua proxy ảnh wsrv.nl (đặt false để tắt)
-var USE_IMAGE_PROXY = true;
+// Proxy ảnh wsrv.nl (mặc định tắt: ảnh lỗi là do web chưa có file poster, proxy không cứu được)
+var USE_IMAGE_PROXY = false;
 
 function posterOf(slug, proxied) {
     var u = BASE + "/wp-content/themes/sieutamphim/assets/posters/" + slug + ".webp";
-    if (proxied && USE_IMAGE_PROXY) return "https://wsrv.nl/?url=" + encodeURIComponent(u) + "&w=300&output=webp";
+    if (proxied && USE_IMAGE_PROXY) return "https://wsrv.nl/?url=" + encodeURIComponent(u) + "&w=300&output=webp&default=" + encodeURIComponent(BASE + "/wp-content/themes/sieutamphim/assets/logo.png");
     return u;
 }
 
@@ -425,8 +425,46 @@ function parseEmbedResponse(html, sourceUrl) {
         if (!real) return "{}";
 
         var headers = { "User-Agent": UA, "Referer": BASE + "/" };
+
+        // Player VSmov (streamvsmov.com/video/<id>) -> phát thẳng master.m3u8 bằng ExoPlayer, không cần WebView
+        var vm = real.match(/^(https?:\/\/[^\/]+)\/video\/([0-9a-fA-F\-]{20,})/);
+        if (vm) {
+            var master = vm[1] + "/stream/" + vm[2] + "/master.m3u8";
+            var sets = [
+                { "User-Agent": UA, "Referer": vm[1] + "/", "Origin": vm[1] },
+                { "User-Agent": UA, "Referer": BASE + "/" },
+                { "User-Agent": UA }
+            ];
+            for (var k = 0; k < sets.length; k++) {
+                try {
+                    var r = httpRequest(master, { method: "GET", headers: sets[k] });
+                    console.log("vsmov master headers#" + k + " status=" + (r && r.status));
+                    if (r && r.status === 200 && (r.body || "").indexOf("#EXTM3U") >= 0) {
+                        return JSON.stringify({ url: master, isEmbed: false, headers: sets[k], subtitles: [] });
+                    }
+                } catch (e3) { console.log("vsmov probe error: " + e3); }
+            }
+            console.log("vsmov: không lấy được master.m3u8, dùng player nhúng");
+            return JSON.stringify({ url: real, isEmbed: true, headers: headers, subtitles: [] });
+        }
+
         if (/\.m3u8|\.mp4/i.test(real)) {
             return JSON.stringify({ url: real, isEmbed: false, headers: headers, subtitles: [] });
+        }
+
+        // Player VS (streamvsmov...): /video/<id> -> master.m3u8 trực tiếp, phát bằng ExoPlayer (không bị hộp thoại PiP)
+        var vm = real.match(/^(https?:\/\/[^\/]+)\/video\/([A-Za-z0-9_-]+)/);
+        if (vm) {
+            var master = vm[1] + "/stream/" + vm[2] + "/master.m3u8";
+            var vh = { "User-Agent": UA, "Referer": vm[1] + "/", "Origin": vm[1] };
+            var ok = true;
+            try {
+                var rr = httpRequest(master, { method: "GET", headers: vh });
+                var okBody = (rr && rr.body) || "";
+                console.log("VS master status=" + (rr && rr.status) + " len=" + okBody.length);
+                ok = !!(rr && rr.status === 200 && okBody.indexOf("#EXTM3U") >= 0);
+            } catch (ev) { console.log("VS master error: " + ev); ok = false; }
+            if (ok) return JSON.stringify({ url: master, isEmbed: false, headers: vh, subtitles: [] });
         }
 
         // short.ink / short.icu -> abyssplayer; bọc trong iframe để tránh bị chuyển hướng
