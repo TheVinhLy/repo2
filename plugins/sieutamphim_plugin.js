@@ -12,7 +12,7 @@ function getManifest() {
     return JSON.stringify({
         "id": "sieutamphim",
         "name": "Sưu Tầm Phim",
-        "version": "2.0.3",
+        "version": "2.0.4",
         "description": "Phim lồng tiếng, thuyết minh, tiếng Việt tại sieutamphim.art",
         "author": "TheVinhLy",
         "baseUrl": "https://www.sieutamphim.art",
@@ -281,9 +281,16 @@ function parseMovieDetail(html, apiUrl, datasend) {
         if (!slug) { var cm = html.match(/rel="canonical" href="([^"]+)"/); if (cm) slug = slugFromUrl(cm[1]); }
 
         var title = "";
-        var t = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/);
-        if (t) title = stripTags(t[1]);
-        if (!title) { t = html.match(/<meta property="og:title" content="([^"]+)"/); if (t) title = decodeEntities(t[1]); }
+        var hm = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/);
+        if (hm) title = stripTags(hm[1]);
+        var t;
+        if (!title || /CẢNH BÁO|MẠO DANH/i.test(title)) {
+            // h1 bị web thay bằng cảnh báo -> lấy tên phim từ og:title
+            t = html.match(/<meta property="og:title" content="([^"]+)"/);
+            title = t ? decodeEntities(t[1]).replace(/^\s*Xem Phim\s+/i, "").replace(/\s*Mới Nhất.*$/i, "").replace(/\s*[-|–]\s*Siêu Tầm Phim\s*$/i, "").trim() : "";
+        }
+        if (!title || /CẢNH BÁO|MẠO DANH/i.test(title)) title = slug.replace(/-/g, " ");
+        console.log("title=" + title + " | h1 warning=" + /MẠO DANH/i.test(html));
 
         var poster = "";
         t = html.match(/<meta property="og:image" content="([^"]+)"/);
