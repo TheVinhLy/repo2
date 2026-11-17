@@ -6,7 +6,7 @@ function getManifest() {
     return JSON.stringify({
         "id": "nguoncnew",
         "name": "Amiya Plugins Embed - No Ads",
-        "version": "1.31",
+        "version": "1.32",
         "baseUrl": "https://phim.nguonc.com",
         "iconUrl": "https://raw.githubusercontent.com/youngbi/repo/main/plugins/nguonC.png",
         "isEnabled": true,
@@ -300,27 +300,20 @@ function parseDetailResponse(html, url) {
             });
         }
         console.log("nguoncnew: no m3u8 in html, fallback custom-js");
+        if ((html || "").indexOf("Sorry, you have been blocked") > -1) console.log("nguoncnew: Cloudflare block page received");
         var customjs = textJS();
+        // v1.32: chỉ gửi UA + Referer giống plugin nguonc chạy ổn. Bỏ Sec-Ch-Ua*/X-Requested-With/Origin giả
+        // (UA nói Chrome 120 nhưng Sec-Ch-Ua nói Chrome 124 -> Cloudflare coi là bot và chặn).
         return JSON.stringify({
             "url": url,
             "headers": {
                 "Referer": "https://embed.streamc.xyz/",
-                "Origin": "https://embed.streamc.xyz",
                 "User-Agent": "Mozilla/5.0 (Linux; Android 10; SM-G975F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
-                // Đánh lừa thuật toán Client Hints của tường lửa
-                "Sec-Ch-Ua": '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
-                "Sec-Ch-Ua-Mobile": "?1",
-                "Sec-Ch-Ua-Platform": '"Android"',
-                
-                // Khai báo kiểu dữ liệu được chấp nhận giống như trình duyệt thật
-                "Accept": "*/*",
-                "Accept-Language": "vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7",
-                "X-Requested-With": "com.android.chrome",
                 "Custom-Js": customjs.trim()
             },
             "subtitles": []
         });
-        
+
     } catch (e) {
         return JSON.stringify({ "url": "", "headers": {} });
     }
@@ -332,7 +325,7 @@ function textJS() {
 (function () {
   var done = false;
   var snap = 0;
-  function log(m) { try { SnifferBridge.log("[nguoncnew1.31] " + m); } catch (e) {} }
+  function log(m) { try { SnifferBridge.log("[nguoncnew1.32] " + m); } catch (e) {} }
   function toast(m, t) { try { SnifferBridge.toast(m, t || 2500); } catch (e) {} }
   var H = JSON.stringify({ "Referer": "https://embed.streamc.xyz/", "Origin": "https://embed.streamc.xyz" });
   function sendUrl(u, why) {
@@ -345,7 +338,7 @@ function textJS() {
     log("play m3u8 content (" + why + ") len=" + t.length); toast("nguoncnew: phát m3u8 " + why);
     try { SnifferBridge.playM3u8Content(t, location.href, H); } catch (e) { log("playM3u8 err " + e); }
   }
-  toast("nguoncnew v1.31 hook", 1500);
+  toast("nguoncnew v1.32 hook", 1500);
 
   // 1) Blob m3u8 do trang tự tạo
   try {
