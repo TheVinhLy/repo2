@@ -6,7 +6,7 @@ function getManifest() {
     return JSON.stringify({
         "id": "nguoncnew",
         "name": "Amiya Plugins Embed - No Ads",
-        "version": "1.27",
+        "version": "1.28",
         "baseUrl": "https://phim.nguonc.com",
         "iconUrl": "https://raw.githubusercontent.com/youngbi/repo/main/plugins/nguonC.png",
         "isEnabled": true,
@@ -283,6 +283,23 @@ function parseMovieDetail(apiResponseJson) {
 
 function parseDetailResponse(html, url) {
     try {
+        // v1.28: ưu tiên lấy thẳng link m3u8 trong trang embed (giống plugin nguonc chạy ổn) -> ExoPlayer
+        var m3u8Regex = /file:\s*["']([^"']+\.m3u8[^"']*)["']|source:\s*["']([^"']+\.m3u8[^"']*)["']|src:\s*["']([^"']+\.m3u8[^"']*)["']|["']([^"']+\.m3u8[^"']*)["']/;
+        var mm = (html || "").match(m3u8Regex);
+        var direct = mm ? (mm[1] || mm[2] || mm[3] || mm[4]) : "";
+        if (direct) {
+            direct = direct.replace(/\\\//g, "/");
+            console.log("nguoncnew: direct m3u8 " + direct);
+            return JSON.stringify({
+                "url": direct,
+                "headers": {
+                    "User-Agent": "Mozilla/5.0 (Linux; Android 10; SM-G975F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
+                    "Referer": "https://embed.streamc.xyz/"
+                },
+                "subtitles": []
+            });
+        }
+        console.log("nguoncnew: no m3u8 in html, fallback custom-js");
         var customjs = textJS();
         return JSON.stringify({
             "url": url,
@@ -315,7 +332,7 @@ function textJS() {
 SCRIPTURL = "local";
 // v1.27: bỏ script Google Apps Script từ xa (không truy cập được) -> dùng hàm cục bộ
 function injectScriptAfterLoad(u) { try { SnifferBridge.log("nguoncnew: local mode, skip remote " + u); } catch (e) {} }
-window.addEventListener('error', function (e) { try { SnifferBridge.log("JS error: " + e.message + " @" + e.lineno); SnifferBridge.toast("JS error: " + e.message, 4000); } catch (x) {} });
+window.addEventListener('error', function (e) { try { SnifferBridge.log("JS error: " + e.message + " @" + e.filename + ":" + e.lineno + " " + ((e.error && e.error.stack) || "")); SnifferBridge.toast("JS error: " + e.message, 4000); } catch (x) {} });
 try { SnifferBridge.log("nguoncnew custom-js started: " + location.href); SnifferBridge.toast("nguoncnew: script chạy", 2000); } catch (e) {}
 const style = document.createElement('style');
 var customcss = 'body { background: black; overflow: hidden; }body * {background: black;display:none!important}';
