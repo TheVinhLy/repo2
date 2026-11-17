@@ -12,7 +12,7 @@ function getManifest() {
     return JSON.stringify({
         "id": "sieutamphim",
         "name": "Sưu Tầm Phim",
-        "version": "2.0.2",
+        "version": "2.0.3",
         "description": "Phim lồng tiếng, thuyết minh, tiếng Việt tại sieutamphim.art",
         "author": "TheVinhLy",
         "baseUrl": "https://www.sieutamphim.art",
@@ -22,7 +22,7 @@ function getManifest() {
         "isAdult": false,
         "type": "MOVIE",
         "layoutType": "VERTICAL",
-        "playerType": "embed",
+        "playerType": "auto",
         "debug": true
     });
 }
@@ -440,7 +440,7 @@ function parseEmbedResponse(html, sourceUrl) {
                     var r = httpRequest(master, { method: "GET", headers: sets[k] });
                     console.log("vsmov master headers#" + k + " status=" + (r && r.status));
                     if (r && r.status === 200 && (r.body || "").indexOf("#EXTM3U") >= 0) {
-                        return JSON.stringify({ url: master, isEmbed: false, headers: sets[k], subtitles: [] });
+                        return JSON.stringify({ url: master, isEmbed: false, mimeType: "application/x-mpegURL", headers: sets[k], subtitles: [] });
                     }
                 } catch (e3) { console.log("vsmov probe error: " + e3); }
             }
@@ -449,7 +449,7 @@ function parseEmbedResponse(html, sourceUrl) {
         }
 
         if (/\.m3u8|\.mp4/i.test(real)) {
-            return JSON.stringify({ url: real, isEmbed: false, headers: headers, subtitles: [] });
+            return JSON.stringify({ url: real, isEmbed: false, mimeType: /\.m3u8/i.test(real) ? "application/x-mpegURL" : "video/mp4", headers: headers, subtitles: [] });
         }
 
         // Player VS (streamvsmov...): /video/<id> -> master.m3u8 trực tiếp, phát bằng ExoPlayer (không bị hộp thoại PiP)
