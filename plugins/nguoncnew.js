@@ -6,7 +6,7 @@ function getManifest() {
     return JSON.stringify({
         "id": "nguoncnew",
         "name": "Amiya Plugins Embed - No Ads",
-        "version": "1.32",
+        "version": "1.33",
         "baseUrl": "https://phim.nguonc.com",
         "iconUrl": "https://raw.githubusercontent.com/youngbi/repo/main/plugins/nguonC.png",
         "isEnabled": true,
@@ -325,7 +325,7 @@ function textJS() {
 (function () {
   var done = false;
   var snap = 0;
-  function log(m) { try { SnifferBridge.log("[nguoncnew1.32] " + m); } catch (e) {} }
+  function log(m) { try { SnifferBridge.log("[nguoncnew1.33] " + m); } catch (e) {} }
   function toast(m, t) { try { SnifferBridge.toast(m, t || 2500); } catch (e) {} }
   var H = JSON.stringify({ "Referer": "https://embed.streamc.xyz/", "Origin": "https://embed.streamc.xyz" });
   function sendUrl(u, why) {
@@ -338,7 +338,7 @@ function textJS() {
     log("play m3u8 content (" + why + ") len=" + t.length); toast("nguoncnew: phát m3u8 " + why);
     try { SnifferBridge.playM3u8Content(t, location.href, H); } catch (e) { log("playM3u8 err " + e); }
   }
-  toast("nguoncnew v1.32 hook", 1500);
+  toast("nguoncnew v1.33 hook", 1500);
 
   // 1) Blob m3u8 do trang tự tạo
   try {
@@ -416,7 +416,14 @@ function textJS() {
   } catch (e) {}
   try {
     var ofe = window.fetch;
-    window.fetch = function (a) { note("fetch " + String((a && a.url) || a).substring(0, 70)); return ofe.apply(this, arguments); };
+    window.fetch = function (a) {
+      var fu = String((a && a.url) || a).substring(0, 60), t0 = Date.now(), fin = false;
+      note("fetch " + fu);
+      var pr = ofe.apply(this, arguments);
+      setTimeout(function () { if (!fin) toast("fetch CHƯA XONG sau 8s: " + fu, 4000); }, 8000);
+      try { pr.then(function (r) { fin = true; toast("fetch xong " + r.status + " " + (Date.now() - t0) + "ms " + (r.headers.get("content-type") || ""), 4000); }, function (er) { fin = true; toast("fetch LỖI: " + er, 5000); log("fetch fail " + er); }); } catch (x) {}
+      return pr;
+    };
   } catch (e) {}
 
   // 3) video.src gán trực tiếp
