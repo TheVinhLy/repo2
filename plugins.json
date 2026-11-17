@@ -145,7 +145,7 @@
         {
             "id": "nguoncnew",
             "name": "Phim NguonC New",
-            "version": "1.0.0",
+            "version": "1.26",
             "scriptUrl": "https://raw.githubusercontent.com/TheVinhLy/repo/main/plugins/nguoncnew.js",
             "iconUrl": "https://raw.githubusercontent.com/TheVinhLy/repo/main/plugins/nguonC.png"
         }
