@@ -6,12 +6,13 @@ function getManifest() {
     return JSON.stringify({
         "id": "nguoncnew",
         "name": "Amiya Plugins Embed - No Ads",
-        "version": "1.26",
+        "version": "1.27",
         "baseUrl": "https://phim.nguonc.com",
         "iconUrl": "https://raw.githubusercontent.com/youngbi/repo/main/plugins/nguonC.png",
         "isEnabled": true,
         "type": "MOVIE",
-        "playerType": "embed"
+        "playerType": "embed",
+        "debug": true
     });
 }
 
@@ -287,7 +288,7 @@ function parseDetailResponse(html, url) {
             "url": url,
             "headers": {
                 "Referer": "https://embed.streamc.xyz/",
-                "Origin": "https://embed.streamc.xyz/",
+                "Origin": "https://embed.streamc.xyz",
                 "User-Agent": "Mozilla/5.0 (Linux; Android 10; SM-G975F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
                 // Đánh lừa thuật toán Client Hints của tường lửa
                 "Sec-Ch-Ua": '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
@@ -311,7 +312,11 @@ function parseDetailResponse(html, url) {
 function textJS() {
     // Sử dụng biến $url từ tham số truyền vào thay vì ghi cứng link
     return `
-SCRIPTURL = "https://script.google.com/macros/s/AKfycbwsvLFzWMdxvX9ZH-3wnP3GJzS58v0CtT_0mlEYeOz6cOsgen9IR3c6VPv_EssPXMFzwQ/exec?name=nguoncnew&type=js"; 
+SCRIPTURL = "local";
+// v1.27: bỏ script Google Apps Script từ xa (không truy cập được) -> dùng hàm cục bộ
+function injectScriptAfterLoad(u) { try { SnifferBridge.log("nguoncnew: local mode, skip remote " + u); } catch (e) {} }
+window.addEventListener('error', function (e) { try { SnifferBridge.log("JS error: " + e.message + " @" + e.lineno); SnifferBridge.toast("JS error: " + e.message, 4000); } catch (x) {} });
+try { SnifferBridge.log("nguoncnew custom-js started: " + location.href); SnifferBridge.toast("nguoncnew: script chạy", 2000); } catch (e) {}
 const style = document.createElement('style');
 var customcss = 'body { background: black; overflow: hidden; }body * {background: black;display:none!important}';
 style.innerHTML = customcss;
