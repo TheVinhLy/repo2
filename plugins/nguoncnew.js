@@ -392,3 +392,72 @@ function textJS() {
 })();
 `;
 }
+
+
+// Hardcoded Categories (Genres)
+function parseCategoriesResponse(apiResponseJson) {
+    var genres = [
+        { name: "Hành Động", slug: "hanh-dong" },
+        { name: "Phiêu Lưu", slug: "phieu-luu" },
+        { name: "Hoạt Hình", slug: "hoat-hinh" },
+        { name: "Hài", slug: "phim-hai" },
+        { name: "Hình Sự", slug: "hinh-su" },
+        { name: "Tài Liệu", slug: "tai-lieu" },
+        { name: "Chính Kịch", slug: "chinh-kich" },
+        { name: "Gia Đình", slug: "gia-dinh" },
+        { name: "Giả Tưởng", slug: "gia-tuong" },
+        { name: "Lịch Sử", slug: "lich-su" },
+        { name: "Kinh Dị", slug: "kinh-di" },
+        { name: "Nhạc", slug: "phim-nhac" },
+        { name: "Bí Ẩn", slug: "bi-an" },
+        { name: "Lãng Mạn", slug: "lang-man" },
+        { name: "Khoa Học Viễn Tưởng", slug: "khoa-hoc-vien-tuong" },
+        { name: "Gây Cấn", slug: "gay-can" },
+        { name: "Chiến Tranh", slug: "chien-tranh" },
+        { name: "Tâm Lý", slug: "tam-ly" },
+        { name: "Tình Cảm", slug: "tinh-cam" },
+        { name: "Cổ Trang", slug: "co-trang" },
+        { name: "Miền Tây", slug: "mien-tay" },
+        { name: "Phim 18+", slug: "phim-18" }
+    ];
+    return JSON.stringify(genres);
+}
+
+// Hardcoded Countries
+function parseCountriesResponse(apiResponseJson) {
+    var countries = [
+        { name: "Âu Mỹ", value: "au-my" },
+        { name: "Anh", value: "anh" },
+        { name: "Trung Quốc", value: "trung-quoc" },
+        { name: "Indonesia", value: "indonesia" },
+        { name: "Việt Nam", value: "viet-nam" },
+        { name: "Pháp", value: "phap" },
+        { name: "Hồng Kông", value: "hong-kong" },
+        { name: "Hàn Quốc", value: "han-quoc" },
+        { name: "Nhật Bản", value: "nhat-ban" },
+        { name: "Thái Lan", value: "thai-lan" },
+        { name: "Đài Loan", value: "dai-loan" },
+        { name: "Nga", value: "nga" },
+        { name: "Hà Lan", value: "ha-lan" },
+        { name: "Philippines", value: "philippines" },
+        { name: "Ấn Độ", value: "an-do" },
+        { name: "Quốc gia khác", value: "quoc-gia-khac" }
+    ];
+    return JSON.stringify(countries);
+}
+
+// Hardcoded Years
+function parseYearsResponse(apiResponseJson) {
+    var years = [];
+    for (var i = 2026; i >= 2004; i--) {
+        years.push({ name: i.toString(), value: i.toString() });
+    }
+    return JSON.stringify(years);
+}
+
+function getImageUrl(path) {
+    if (!path) return "";
+    if (path.indexOf("http") === 0) return path;
+    // Base image URL for NguonC
+    return "https://img.phimapi.com/" + path;
+}
