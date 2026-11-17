@@ -141,6 +141,13 @@
             "version": "1.0.5",
             "scriptUrl": "https://raw.githubusercontent.com/TheVinhLy/repo/main/plugins/cobephim_plugin.js",
             "iconUrl": "https://raw.githubusercontent.com/TheVinhLy/repo/main/plugins/cobephim.ico"
+        },
+        {
+            "id": "nguoncnew",
+            "name": "Phim NguonC New",
+            "version": "1.0.0",
+            "scriptUrl": "https://raw.githubusercontent.com/TheVinhLy/repo/main/plugins/nguoncnew.js",
+            "iconUrl": "https://raw.githubusercontent.com/TheVinhLy/repo/main/plugins/nguonC.png"
         }
     ]
 }
