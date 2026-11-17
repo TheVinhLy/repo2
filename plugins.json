@@ -148,6 +148,13 @@
             "version": "1.34",
             "scriptUrl": "https://raw.githubusercontent.com/TheVinhLy/repo/main/plugins/nguoncnew.js",
             "iconUrl": "https://raw.githubusercontent.com/TheVinhLy/repo/main/plugins/nguonC.png"
+        },
+        {
+            "id": "porndos",
+            "name": "PornDos",
+            "version": "1.0.0",
+            "scriptUrl": "https://raw.githubusercontent.com/TheVinhLy/repo/main/plugins/porndos_plugin.js",
+            "iconUrl": "https://raw.githubusercontent.com/TheVinhLy/repo/main/plugins/porndos.ico"
         }
     ]
 }
