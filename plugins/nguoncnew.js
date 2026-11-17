@@ -6,7 +6,7 @@ function getManifest() {
     return JSON.stringify({
         "id": "nguoncnew",
         "name": "Amiya Plugins Embed - No Ads",
-        "version": "1.29",
+        "version": "1.30",
         "baseUrl": "https://phim.nguonc.com",
         "iconUrl": "https://raw.githubusercontent.com/youngbi/repo/main/plugins/nguonC.png",
         "isEnabled": true,
@@ -331,7 +331,7 @@ function textJS() {
     return `
 (function () {
   var done = false;
-  function log(m) { try { SnifferBridge.log("[nguoncnew1.29] " + m); } catch (e) {} }
+  function log(m) { try { SnifferBridge.log("[nguoncnew1.30] " + m); } catch (e) {} }
   function toast(m, t) { try { SnifferBridge.toast(m, t || 2500); } catch (e) {} }
   var H = JSON.stringify({ "Referer": "https://embed.streamc.xyz/", "Origin": "https://embed.streamc.xyz" });
   function sendUrl(u, why) {
@@ -344,7 +344,7 @@ function textJS() {
     log("play m3u8 content (" + why + ") len=" + t.length); toast("nguoncnew: phát m3u8 " + why);
     try { SnifferBridge.playM3u8Content(t, location.href, H); } catch (e) { log("playM3u8 err " + e); }
   }
-  toast("nguoncnew v1.29 hook", 1500);
+  toast("nguoncnew v1.30 hook", 1500);
 
   // 1) Blob m3u8 do trang tự tạo
   try {
@@ -378,6 +378,52 @@ function textJS() {
       return xo.apply(this, arguments);
     };
   } catch (e) { log("hook net err " + e); }
+
+  // 2b) Playlist m3u8 giải mã trong bộ nhớ (aesgcm / TextDecoder / JSON / atob)
+  var seen = 0;
+  function note(m) { if (seen < 8) { seen++; toast(m, 1800); } log(m); }
+  function scan(str, why) {
+    try {
+      if (done || typeof str !== "string" || str.length < 10) return;
+      if (str.trim().indexOf("#EXTM3U") === 0) { sendText(str, why); return; }
+      var i = str.indexOf(".m3u8");
+      if (i > -1) {
+        var a = str.lastIndexOf("http", i);
+        if (a > -1) {
+          var e = i + 5;
+          while (e < str.length) { var c = str.charCodeAt(e); if (c <= 32 || c === 34 || c === 39 || c === 60 || c === 62) break; e++; }
+          sendUrl(str.substring(a, e).split(String.fromCharCode(92)).join(""), why);
+        }
+      }
+    } catch (x) {}
+  }
+  try {
+    if (window.crypto && crypto.subtle && crypto.subtle.decrypt) {
+      var od = crypto.subtle.decrypt.bind(crypto.subtle);
+      crypto.subtle.decrypt = function () {
+        note("crypto.decrypt");
+        var pr = od.apply(null, arguments);
+        pr.then(function (buf) { try { scan(new TextDecoder().decode(buf), "decrypt"); } catch (x) {} }).catch(function () {});
+        return pr;
+      };
+    }
+  } catch (e) { log("hook crypto err " + e); }
+  try {
+    var odec = TextDecoder.prototype.decode;
+    TextDecoder.prototype.decode = function () { var r = odec.apply(this, arguments); scan(r, "textdecoder"); return r; };
+    var oj = JSON.parse;
+    JSON.parse = function (t) { var r = oj.apply(this, arguments); if (typeof t === "string" && t.length < 500000) scan(t, "json"); return r; };
+    var oa = window.atob;
+    window.atob = function (t) { var r = oa.apply(this, arguments); scan(r, "atob"); return r; };
+  } catch (e) { log("hook decode err " + e); }
+  try {
+    var oam = MediaSource.prototype.addSourceBuffer;
+    MediaSource.prototype.addSourceBuffer = function (m) { note("MSE: " + m); return oam.apply(this, arguments); };
+  } catch (e) {}
+  try {
+    var ofe = window.fetch;
+    window.fetch = function (a) { note("fetch " + String((a && a.url) || a).substring(0, 70)); return ofe.apply(this, arguments); };
+  } catch (e) {}
 
   // 3) video.src gán trực tiếp
   function watchVideo() {
