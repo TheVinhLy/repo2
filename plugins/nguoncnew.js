@@ -6,7 +6,7 @@ function getManifest() {
     return JSON.stringify({
         "id": "nguoncnew",
         "name": "Amiya Plugins Embed - No Ads",
-        "version": "1.30",
+        "version": "1.31",
         "baseUrl": "https://phim.nguonc.com",
         "iconUrl": "https://raw.githubusercontent.com/youngbi/repo/main/plugins/nguonC.png",
         "isEnabled": true,
@@ -331,7 +331,8 @@ function textJS() {
     return `
 (function () {
   var done = false;
-  function log(m) { try { SnifferBridge.log("[nguoncnew1.30] " + m); } catch (e) {} }
+  var snap = 0;
+  function log(m) { try { SnifferBridge.log("[nguoncnew1.31] " + m); } catch (e) {} }
   function toast(m, t) { try { SnifferBridge.toast(m, t || 2500); } catch (e) {} }
   var H = JSON.stringify({ "Referer": "https://embed.streamc.xyz/", "Origin": "https://embed.streamc.xyz" });
   function sendUrl(u, why) {
@@ -344,7 +345,7 @@ function textJS() {
     log("play m3u8 content (" + why + ") len=" + t.length); toast("nguoncnew: phát m3u8 " + why);
     try { SnifferBridge.playM3u8Content(t, location.href, H); } catch (e) { log("playM3u8 err " + e); }
   }
-  toast("nguoncnew v1.30 hook", 1500);
+  toast("nguoncnew v1.31 hook", 1500);
 
   // 1) Blob m3u8 do trang tự tạo
   try {
@@ -367,7 +368,7 @@ function textJS() {
       var url = (a && a.url) || String(a);
       if (/\\.m3u8(\\?|$)/i.test(url)) sendUrl(url, "fetch");
       var p = of.apply(this, arguments);
-      try { p.then(function (r) { r.clone().text().then(function (t) { sendText(t, "fetch-body"); }).catch(function () {}); }).catch(function () {}); } catch (e) {}
+      try { p.then(function (r) { r.clone().text().then(function (t) { sendText(t, "fetch-body"); scan(t, "fetch-scan"); if (!done && t && t.length < 3000000) { snap++; if (snap <= 4) { var q = String(t).substring(0, 160).split(String.fromCharCode(10)).join(" "); toast("RESP#" + snap + " " + t.length + "B: " + q, 6000); log("RESP#" + snap + " " + String(t).substring(0, 600)); } } }).catch(function () {}); }).catch(function () {}); } catch (e) {}
       return p;
     };
     var xo = XMLHttpRequest.prototype.open;
