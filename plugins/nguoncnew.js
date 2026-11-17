@@ -5,14 +5,13 @@
 function getManifest() {
     return JSON.stringify({
         "id": "nguoncnew",
-        "name": "Amiya Plugins Embed - No Ads",
-        "version": "1.33",
+        "name": "Phim NguonC New",
+        "version": "1.34",
         "baseUrl": "https://phim.nguonc.com",
-        "iconUrl": "https://raw.githubusercontent.com/youngbi/repo/main/plugins/nguonC.png",
+        "iconUrl": "https://raw.githubusercontent.com/TheVinhLy/repo/main/plugins/nguonC.png",
         "isEnabled": true,
         "type": "MOVIE",
-        "playerType": "embedtoexoplay",
-        "debug": true
+        "playerType": "embed"
     });
 }
 
@@ -282,166 +281,33 @@ function parseMovieDetail(apiResponseJson) {
 
 
 function parseDetailResponse(html, url) {
+    // v1.34: tối giản. Không inject JS, không hook; để trình phát của nguồn tự chạy trong WebView.
+    var UA = "Mozilla/5.0 (Linux; Android 10; SM-G975F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36";
     try {
-        // v1.28: ưu tiên lấy thẳng link m3u8 trong trang embed (giống plugin nguonc chạy ổn) -> ExoPlayer
         var m3u8Regex = /file:\s*["']([^"']+\.m3u8[^"']*)["']|source:\s*["']([^"']+\.m3u8[^"']*)["']|src:\s*["']([^"']+\.m3u8[^"']*)["']|["']([^"']+\.m3u8[^"']*)["']/;
         var mm = (html || "").match(m3u8Regex);
         var direct = mm ? (mm[1] || mm[2] || mm[3] || mm[4]) : "";
         if (direct) {
-            direct = direct.replace(/\\\//g, "/");
-            console.log("nguoncnew: direct m3u8 " + direct);
+            direct = direct.split("\\/").join("/");
             return JSON.stringify({
                 "url": direct,
-                "headers": {
-                    "User-Agent": "Mozilla/5.0 (Linux; Android 10; SM-G975F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
-                    "Referer": "https://embed.streamc.xyz/"
-                },
+                "isEmbed": false,
+                "mimeType": "application/x-mpegURL",
+                "headers": { "User-Agent": UA, "Referer": "https://embed.streamc.xyz/" },
                 "subtitles": []
             });
         }
-        console.log("nguoncnew: no m3u8 in html, fallback custom-js");
-        if ((html || "").indexOf("Sorry, you have been blocked") > -1) console.log("nguoncnew: Cloudflare block page received");
-        var customjs = textJS();
-        // v1.32: chỉ gửi UA + Referer giống plugin nguonc chạy ổn. Bỏ Sec-Ch-Ua*/X-Requested-With/Origin giả
-        // (UA nói Chrome 120 nhưng Sec-Ch-Ua nói Chrome 124 -> Cloudflare coi là bot và chặn).
         return JSON.stringify({
             "url": url,
-            "headers": {
-                "Referer": "https://embed.streamc.xyz/",
-                "User-Agent": "Mozilla/5.0 (Linux; Android 10; SM-G975F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
-                "Custom-Js": customjs.trim()
-            },
+            "isEmbed": true,
+            "headers": { "User-Agent": UA, "Referer": "https://phim.nguonc.com/" },
             "subtitles": []
         });
-
     } catch (e) {
-        return JSON.stringify({ "url": "", "headers": {} });
+        return JSON.stringify({ "url": url || "", "headers": {} });
     }
 }
 
-function textJS() {
-    // v1.29: KHÔNG xóa DOM/timer của trang nữa. Chỉ "nghe lén" để bắt playlist rồi đưa cho ExoPlayer.
-    return `
-(function () {
-  var done = false;
-  var snap = 0;
-  function log(m) { try { SnifferBridge.log("[nguoncnew1.33] " + m); } catch (e) {} }
-  function toast(m, t) { try { SnifferBridge.toast(m, t || 2500); } catch (e) {} }
-  var H = JSON.stringify({ "Referer": "https://embed.streamc.xyz/", "Origin": "https://embed.streamc.xyz" });
-  function sendUrl(u, why) {
-    if (done || !u) return; done = true;
-    log("play url (" + why + "): " + u); toast("nguoncnew: phát " + why);
-    try { SnifferBridge.play(u, H); } catch (e) { log("play err " + e); }
-  }
-  function sendText(t, why) {
-    if (done || !t || String(t).trim().indexOf("#EXTM3U") !== 0) return; done = true;
-    log("play m3u8 content (" + why + ") len=" + t.length); toast("nguoncnew: phát m3u8 " + why);
-    try { SnifferBridge.playM3u8Content(t, location.href, H); } catch (e) { log("playM3u8 err " + e); }
-  }
-  toast("nguoncnew v1.33 hook", 1500);
-
-  // 1) Blob m3u8 do trang tự tạo
-  try {
-    var oc = URL.createObjectURL;
-    URL.createObjectURL = function (b) {
-      var u = oc.apply(this, arguments);
-      try {
-        if (b && typeof b.text === "function" && (!b.type || /mpegurl|text|octet/i.test(b.type) || b.size < 2000000)) {
-          b.text().then(function (t) { sendText(t, "blob"); }).catch(function () {});
-        }
-      } catch (e) {}
-      return u;
-    };
-  } catch (e) { log("hook blob err " + e); }
-
-  // 2) fetch / XHR trả về playlist hoặc URL .m3u8
-  try {
-    var of = window.fetch;
-    window.fetch = function (a) {
-      var url = (a && a.url) || String(a);
-      if (/\\.m3u8(\\?|$)/i.test(url)) sendUrl(url, "fetch");
-      var p = of.apply(this, arguments);
-      try { p.then(function (r) { r.clone().text().then(function (t) { sendText(t, "fetch-body"); scan(t, "fetch-scan"); if (!done && t && t.length < 3000000) { snap++; if (snap <= 4) { var q = String(t).substring(0, 160).split(String.fromCharCode(10)).join(" "); toast("RESP#" + snap + " " + t.length + "B: " + q, 6000); log("RESP#" + snap + " " + String(t).substring(0, 600)); } } }).catch(function () {}); }).catch(function () {}); } catch (e) {}
-      return p;
-    };
-    var xo = XMLHttpRequest.prototype.open;
-    XMLHttpRequest.prototype.open = function (m, u) {
-      var self = this, url = String(u);
-      if (/\\.m3u8(\\?|$)/i.test(url)) sendUrl(url, "xhr");
-      this.addEventListener("load", function () { try { if (typeof self.responseText === "string") sendText(self.responseText, "xhr-body"); } catch (e) {} });
-      return xo.apply(this, arguments);
-    };
-  } catch (e) { log("hook net err " + e); }
-
-  // 2b) Playlist m3u8 giải mã trong bộ nhớ (aesgcm / TextDecoder / JSON / atob)
-  var seen = 0;
-  function note(m) { if (seen < 8) { seen++; toast(m, 1800); } log(m); }
-  function scan(str, why) {
-    try {
-      if (done || typeof str !== "string" || str.length < 10) return;
-      if (str.trim().indexOf("#EXTM3U") === 0) { sendText(str, why); return; }
-      var i = str.indexOf(".m3u8");
-      if (i > -1) {
-        var a = str.lastIndexOf("http", i);
-        if (a > -1) {
-          var e = i + 5;
-          while (e < str.length) { var c = str.charCodeAt(e); if (c <= 32 || c === 34 || c === 39 || c === 60 || c === 62) break; e++; }
-          sendUrl(str.substring(a, e).split(String.fromCharCode(92)).join(""), why);
-        }
-      }
-    } catch (x) {}
-  }
-  try {
-    if (window.crypto && crypto.subtle && crypto.subtle.decrypt) {
-      var od = crypto.subtle.decrypt.bind(crypto.subtle);
-      crypto.subtle.decrypt = function () {
-        note("crypto.decrypt");
-        var pr = od.apply(null, arguments);
-        pr.then(function (buf) { try { scan(new TextDecoder().decode(buf), "decrypt"); } catch (x) {} }).catch(function () {});
-        return pr;
-      };
-    }
-  } catch (e) { log("hook crypto err " + e); }
-  try {
-    var odec = TextDecoder.prototype.decode;
-    TextDecoder.prototype.decode = function () { var r = odec.apply(this, arguments); scan(r, "textdecoder"); return r; };
-    var oj = JSON.parse;
-    JSON.parse = function (t) { var r = oj.apply(this, arguments); if (typeof t === "string" && t.length < 500000) scan(t, "json"); return r; };
-    var oa = window.atob;
-    window.atob = function (t) { var r = oa.apply(this, arguments); scan(r, "atob"); return r; };
-  } catch (e) { log("hook decode err " + e); }
-  try {
-    var oam = MediaSource.prototype.addSourceBuffer;
-    MediaSource.prototype.addSourceBuffer = function (m) { note("MSE: " + m); return oam.apply(this, arguments); };
-  } catch (e) {}
-  try {
-    var ofe = window.fetch;
-    window.fetch = function (a) {
-      var fu = String((a && a.url) || a).substring(0, 60), t0 = Date.now(), fin = false;
-      note("fetch " + fu);
-      var pr = ofe.apply(this, arguments);
-      setTimeout(function () { if (!fin) toast("fetch CHƯA XONG sau 8s: " + fu, 4000); }, 8000);
-      try { pr.then(function (r) { fin = true; toast("fetch xong " + r.status + " " + (Date.now() - t0) + "ms " + (r.headers.get("content-type") || ""), 4000); }, function (er) { fin = true; toast("fetch LỖI: " + er, 5000); log("fetch fail " + er); }); } catch (x) {}
-      return pr;
-    };
-  } catch (e) {}
-
-  // 3) video.src gán trực tiếp
-  function watchVideo() {
-    var v = document.querySelector("video");
-    if (v && v.src && !/^blob:/.test(v.src) && /\\.(m3u8|mp4)/i.test(v.src)) sendUrl(v.src, "video.src");
-    var b = document.getElementById("resumeBtn");
-    if (b && b.offsetParent !== null) { try { b.click(); log("click resumeBtn"); } catch (e) {} }
-  }
-  setInterval(function () { try { watchVideo(); } catch (e) {} }, 1000);
-
-  window.addEventListener("error", function (e) { log("page error: " + e.message + " @" + e.filename + ":" + e.lineno); });
-})();
-`;
-}
-
-
-// Hardcoded Categories (Genres)
 function parseCategoriesResponse(apiResponseJson) {
     var genres = [
         { name: "Hành Động", slug: "hanh-dong" },
