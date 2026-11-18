@@ -33,14 +33,14 @@
         {
             "id": "sieutamphim",
             "name": "Sưu Tầm Phim",
-            "version": "2.0.4",
+            "version": "2.0.5",
             "scriptUrl": "https://raw.githubusercontent.com/TheVinhLy/repo/main/plugins/sieutamphim_plugin.js",
             "iconUrl": "https://www.sieutamphim.art/wp-content/themes/sieutamphim/assets/logo.png"
         },
         {
             "id": "sieutamphimembed",
             "name": "Sưu Tầm Phim (Embed)",
-            "version": "1.0.0",
+            "version": "1.0.1",
             "scriptUrl": "https://raw.githubusercontent.com/TheVinhLy/repo/main/plugins/sieutamphim_embed_plugin.js",
             "iconUrl": "https://www.sieutamphim.art/wp-content/themes/sieutamphim/assets/logo.png"
         },
