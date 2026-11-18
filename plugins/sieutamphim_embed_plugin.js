@@ -12,7 +12,7 @@ function getManifest() {
     return JSON.stringify({
         "id": "sieutamphimembed",
         "name": "Sưu Tầm Phim (Embed)",
-        "version": "1.0.3",
+        "version": "1.0.4",
         "description": "Phim lồng tiếng, thuyết minh, tiếng Việt tại sieutamphim.art",
         "author": "TheVinhLy",
         "baseUrl": "https://www.sieutamphim.art",
@@ -442,8 +442,8 @@ function parseEmbedResponse(html, sourceUrl) {
         // short.ink / short.icu -> abyssplayer; bọc trong iframe để tránh bị chuyển hướng
         real = real.replace(/https?:\/\/(short\.ink|short\.icu)\//, "https://player.abyssplayer.com/");
         if (/abyss/i.test(real)) {
-            var wrap = '<html style="height:100%"><body style="margin:0;padding:0;height:100%;background:#000;"><iframe src="' + real +
-                '" style="width:100%;height:100%;border:none;" allowfullscreen></iframe></body></html>';
+            var wrap = '<html style="height:100%"><body style="margin:0;padding:0;height:100%;background:#000;overflow:hidden;">' +
+                '<iframe src="' + real + '" style="position:absolute;top:50%;left:50%;width:88vw;height:88vh;transform:translate(-50%,-50%);border:none;background:#000;" allowfullscreen></iframe></body></html>';
             return JSON.stringify({
                 url: "data:text/html;base64," + b64encode(wrap),
                 isEmbed: true,
