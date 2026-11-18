@@ -1,6 +1,6 @@
 // =============================================================================
 // VAAPP Plugin: PornDos  (https://www.porndos.com)
-// Author: TheVinhLy  |  Version: 1.0.4
+// Author: TheVinhLy  |  Version: 1.0.5
 // Luồng lấy link:
 //   1. parseMovieDetail → lấy video_id số (vd "9456"), set episode.id = slug|data:9456
 //   2. getUrlDetail(slug, datasend="9456") → trả URL embed: /embed/9456/
@@ -66,7 +66,7 @@ function getManifest() {
     return JSON.stringify({
         "id": "porndos",
         "name": "PornDos",
-        "version": "1.0.4",
+        "version": "1.0.5",
         "description": "Free HD Porn Videos từ porndos.com",
         "author": "TheVinhLy",
         "baseUrl": "https://www.porndos.com",
