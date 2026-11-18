@@ -59,7 +59,7 @@ function getManifest() {
     return JSON.stringify({
         "id": "hqporner",
         "name": "HQPorner",
-        "version": "1.0.10",
+        "version": "1.0.11",
         "description": "Video HD 18+ từ hqporner.com",
         "author": "TheVinhLy",
         "baseUrl": "https://hqporner.com",
@@ -300,6 +300,7 @@ function parseMovieDetail(html, apiUrl, datasend) {
     for (var ci = 0; ci < cands.length; ci++) { if (!BAD.test(cands[ci])) { poster = cands[ci]; break; } }
     console.log("DETAIL ảnh ứng viên (" + cands.length + "): " + cands.slice(0, 6).join(" | "));
     console.log("DETAIL poster = " + (poster || "KHÔNG THẤY"));
+    var dbgInfo = "[DEBUG ảnh] tìm thấy " + cands.length + " | chọn: " + (poster || "KHÔNG") + " | " + cands.slice(0, 5).join(" ; ");
 
     var d = html.match(/<meta[^>]+(?:name="description"|property="og:description")[^>]+content="([^"]*)"/i);
 
@@ -336,7 +337,7 @@ function parseMovieDetail(html, apiUrl, datasend) {
         title: title,
         posterUrl: poster,
         backdropUrl: poster,
-        description: d ? decodeHtml(d[1]) : "",
+        description: (d ? decodeHtml(d[1]) : "") + "\n\n" + dbgInfo,
         servers: [
             {
                 name: "HQPorner",
