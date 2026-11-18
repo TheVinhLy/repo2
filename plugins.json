@@ -38,6 +38,13 @@
             "iconUrl": "https://www.sieutamphim.art/wp-content/themes/sieutamphim/assets/logo.png"
         },
         {
+            "id": "sieutamphimembed",
+            "name": "Sưu Tầm Phim (Embed)",
+            "version": "1.0.0",
+            "scriptUrl": "https://raw.githubusercontent.com/TheVinhLy/repo/main/plugins/sieutamphim_embed_plugin.js",
+            "iconUrl": "https://www.sieutamphim.art/wp-content/themes/sieutamphim/assets/logo.png"
+        },
+        {
             "id": "phimhdcs",
             "name": "PhimHDCSS",
             "version": "1.1.4",
@@ -148,13 +155,6 @@
             "version": "1.34",
             "scriptUrl": "https://raw.githubusercontent.com/TheVinhLy/repo/main/plugins/nguoncnew.js",
             "iconUrl": "https://raw.githubusercontent.com/TheVinhLy/repo/main/plugins/nguonC.png"
-        },
-        {
-            "id": "porndos",
-            "name": "PornDos",
-            "version": "1.0.0",
-            "scriptUrl": "https://raw.githubusercontent.com/TheVinhLy/repo/main/plugins/porndos_plugin.js",
-            "iconUrl": "https://raw.githubusercontent.com/TheVinhLy/repo/main/plugins/porndos.ico"
         }
     ]
 }
