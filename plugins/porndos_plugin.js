@@ -1,6 +1,6 @@
 // =============================================================================
 // VAAPP Plugin: PornDos  (https://www.porndos.com)
-// Author: TheVinhLy  |  Version: 1.0.9
+// Author: TheVinhLy  |  Version: 1.0.10
 // Luồng lấy link:
 //   1. parseMovieDetail → lấy video_id số (vd "9456"), set episode.id = slug|data:9456
 //   2. getUrlDetail(slug, datasend="9456") → trả URL embed: /embed/9456/
@@ -42,6 +42,32 @@ function linkName(inner, tag, slug) {
     return n;
 }
 
+// -----------------------------------------------------------------------------
+// Lấy các bản mp4 từ flashvars của trang video:
+//   video_url / video_alt_url / video_alt_url2 / video_alt_url3 (+ _text = "360p"...)
+// Trả về mảng {q, url, label} sắp xếp chất lượng cao -> thấp
+// -----------------------------------------------------------------------------
+function parseFlashvars(html) {
+    var out = [];
+    var seen = {};
+    var re = /(video_(?:alt_)?url\d*)\s*:\s*'([^']+)'/gi;
+    var m;
+    while ((m = re.exec(String(html || ""))) !== null) {
+        var key = m[1];
+        var u = m[2].replace(/^function\/\d+\//i, "");
+        if (!/\.mp4|get_stream|get_file/i.test(u)) continue;
+        u = absUrl(u);
+        if (seen[u]) continue;
+        seen[u] = true;
+        var tm = String(html).match(new RegExp(key + "_text\\s*:\\s*'([^']+)'", "i"));
+        var label = tm ? tm[1] : "";
+        var qm = label.match(/(\d{3,4})/) || u.match(/-(\d{3,4})\.mp4/i);
+        out.push({ q: qm ? parseInt(qm[1], 10) : 0, url: u, label: label || (qm ? qm[1] + "p" : "mp4") });
+    }
+    out.sort(function (a, b) { return b.q - a.q; });
+    return out;
+}
+
 // "/video/slug-name_v123/" → "slug-name_v123"
 function pathToSlug(href) {
     var m = String(href).match(/\/video\/([^"'?#|\s\/]+)/i);
@@ -66,7 +92,7 @@ function getManifest() {
     return JSON.stringify({
         "id": "porndos",
         "name": "PornDos",
-        "version": "1.0.9",
+        "version": "1.0.10",
         "description": "Free HD Porn Videos từ porndos.com",
         "author": "TheVinhLy",
         "baseUrl": "https://www.porndos.com",
@@ -76,9 +102,9 @@ function getManifest() {
         "isAdult": true,
         "type": "MOVIE",
         "layoutType": "HORIZONTAL",
-        "playerType": "auto",
+        "playerType": "exoplayer",
         "adblock": true,
-        "debug": true
+        "debug": false
     });
 }
 
@@ -138,6 +164,12 @@ function getUrlSearch(keyword, filtersJson) {
 function getUrlDetail(slug, datasend) {
     if (!slug) return "";
     slug = String(slug).split("|")[0];
+
+    // datasend "q=720" -> tải trang video, parseDetailResponse sẽ chọn bản mp4 theo chất lượng
+    if (datasend && /^q=\d+/i.test(String(datasend).trim())) {
+        if (slug.indexOf("http") === 0) return slug;
+        return BASE + "/video/" + slug.replace(/^\/+/, "").replace(/^video\//, "").replace(/\/+$/, "") + "/";
+    }
 
     // datasend là video_id số -> trả embed URL
     if (datasend && /^\d+$/.test(String(datasend).trim())) {
@@ -336,60 +368,27 @@ function parseMovieDetail(html, apiUrl, datasend) {
         episodeDatasend = "";
     }
 
-    // DEBUG v1.0.9: ghi kết quả thăm dò vào mô tả (toast không hiện được)
-    var dbgText = "";
-    function esc(x) { return String(x || "").replace(/</g, "‹").replace(/>/g, "›").replace(/\s+/g, " "); }
-    try {
-        // (1) Trang video có chứa link phát / từ khóa gì?
-        var hints = [];
-        var hre = /(okhls|m3u8|vkuser|okcdn|video_url|video_alt_url|\.mp4|get_file|Playerjs|<iframe|<video|<source)/gi;
-        var hm, hc = 0;
-        while ((hm = hre.exec(html)) !== null && hc < 8) {
-            hints.push(esc(html.substring(Math.max(0, hm.index - 60), hm.index + 140)));
-            hc++;
-            hre.lastIndex = hm.index + 140;
+    var fvs = parseFlashvars(html);
+    var pageUrl = BASE + "/video/" + id + "/";
+    var epObj = { id: episodeId, name: "Full", slug: id || "full", datasend: episodeDatasend };
+    if (fvs.length > 0) {
+        var opts = [];
+        for (var qi = 0; qi < fvs.length; qi++) {
+            opts.push({ name: fvs[qi].label + (qi === 0 ? " (mặc định)" : ""), url: pageUrl, datasend: "q=" + (fvs[qi].q || 0) });
         }
-        dbgText = "[DEBUG v1.0.9] vidId=" + vidId + " | trang video len=" + html.length + "\n[PAGE gợi ý " + hints.length + "] " + hints.join(" ## ");
-
-        // (2) Tải trang embed với nhiều bộ header, xem file=... có đổi không
-        if (vidId) {
-            var UAm = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36";
-            var UAd = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
-            var embedPage = BASE + "/embed/" + vidId + "/";
-            var vpage = BASE + "/video/" + id + "/";
-            var tries = [
-                { n: "E1 mobile ref=video", u: embedPage, h: { "User-Agent": UAm, "Referer": vpage } },
-                { n: "E2 desktop ref=video", u: embedPage, h: { "User-Agent": UAd, "Referer": vpage, "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8", "Accept-Language": "en-US,en;q=0.9", "Sec-Fetch-Dest": "iframe", "Sec-Fetch-Mode": "navigate", "Sec-Fetch-Site": "same-origin" } },
-                { n: "E3 desktop no-ref", u: embedPage, h: { "User-Agent": UAd } }
-            ];
-            for (var ti = 0; ti < tries.length; ti++) {
-                try {
-                    var tr = httpRequest(tries[ti].u, { method: "GET", headers: tries[ti].h });
-                    var tb = (tr && tr.body) ? String(tr.body) : "";
-                    var fm2 = tb.match(/file:\s*"([^"]+)"/i);
-                    var scr = [];
-                    var sre = /<script[^>]+src="([^"]+)"/gi, sm;
-                    while ((sm = sre.exec(tb)) !== null) scr.push(sm[1]);
-                    dbgText += "\n[" + tries[ti].n + "] status=" + (tr && tr.status) + " len=" + tb.length + " file=" + (fm2 ? fm2[1] : "KHÔNG") + " scripts=" + scr.join(",");
-                } catch (e3) { dbgText += "\n[" + tries[ti].n + "] lỗi: " + e3; }
-            }
-        }
-    } catch (e2) { dbgText = "[DEBUG v1.0.9] lỗi: " + e2; }
+        epObj = { name: "Full", slug: id || "full", id: "", ids: opts };
+    }
+    console.log("DETAIL flashvars=" + fvs.length);
 
     return JSON.stringify({
         id: id,
         title: title,
         posterUrl: poster,
         backdropUrl: poster,
-        description: (d ? decodeHtml(d[1]) : "") + "\n\n" + dbgText,
+        description: d ? decodeHtml(d[1]) : "",
         servers: [{
             name: "PornDos",
-            episodes: [{
-                id: episodeId,
-                name: "Full",
-                slug: id || "full",
-                datasend: episodeDatasend
-            }]
+            episodes: [epObj]
         }],
         quality: "HD",
         status: "Full",
@@ -460,6 +459,33 @@ function streamResult(url, ref) {
 function parseDetailResponse(html, apiUrl, datasend) {
     html = String(html || "");
     console.log("parseDetailResponse: url=" + apiUrl + " len=" + html.length);
+
+    // Ưu tiên bản mp4 trong flashvars của trang video, chọn theo chất lượng đã bấm
+    var fv = parseFlashvars(html);
+    if (fv.length > 0) {
+        var wantQ = 0;
+        var wm = (String(datasend || "") + " " + String(apiUrl || "")).match(/q=(\d+)/);
+        if (wm) wantQ = parseInt(wm[1], 10);
+        var pick = fv[0];
+        if (wantQ > 0) {
+            var under = null;
+            for (var fi = 0; fi < fv.length; fi++) {
+                if (fv[fi].q > 0 && fv[fi].q <= wantQ && (!under || fv[fi].q > under.q)) under = fv[fi];
+            }
+            pick = under || fv[fv.length - 1];
+        }
+        console.log("parseDetailResponse: mp4=" + pick.url);
+        return JSON.stringify({
+            url: pick.url,
+            isEmbed: false,
+            mimeType: "video/mp4",
+            headers: {
+                "Referer": BASE + "/",
+                "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
+            },
+            subtitles: []
+        });
+    }
 
     var stream = findStream(html);
     if (stream) {
