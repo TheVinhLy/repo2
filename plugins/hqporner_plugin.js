@@ -59,7 +59,7 @@ function getManifest() {
     return JSON.stringify({
         "id": "hqporner",
         "name": "HQPorner",
-        "version": "1.0.9",
+        "version": "1.0.10",
         "description": "Video HD 18+ từ hqporner.com",
         "author": "TheVinhLy",
         "baseUrl": "https://hqporner.com",
@@ -90,7 +90,7 @@ function getPrimaryCategories() {
         { name: 'Top Tháng', slug: 'top/month' },
         { name: 'Top Mọi Thời Đại', slug: 'top' },
         { name: 'Thể Loại', slug: 'categories' },
-        { name: 'Diễn Viên', slug: 'actresses' }
+        { name: 'Diễn Viên', slug: 'girls' }
     ]);
 }
 
@@ -109,7 +109,8 @@ function getUrlList(slug, filtersJson) {
     console.log("getUrlList slug=" + slug + " page=" + page);
     if (slug.indexOf("actress/") === 0) slug = "actress/" + encodeURIComponent(decodeURIComponent(slug.substring(8)));
 
-    if (slug === "categories" || slug === "actresses") {
+    if (slug === "actresses") slug = "girls";
+    if (slug === "categories" || slug === "girls") {
         return BASE + "/" + slug + (page > 1 ? "/" + page : "");
     }
     if (slug === "hdporn" || slug === "") {
@@ -168,7 +169,7 @@ function parseListResponse(html, apiUrl) {
         }
 
         // --- Trang Diễn viên: quality "ACTRESS" ---
-        if (/\/actresses/i.test(url)) {
+        if (/\/(?:actresses|girls)(?:\/|$|\?)/i.test(url)) {
             var ar = new RegExp(ACTRESS_RE, "gi");
             while ((m = ar.exec(html)) !== null) {
                 var aname = linkName(m[2], m[0], m[1]);
@@ -278,14 +279,26 @@ function parseMovieDetail(html, apiUrl, datasend) {
         || html.match(/<meta[^>]+property="og:title"[^>]+content="([^"]+)"/i);
     var title = t ? decodeHtml(t[1]) : "Video";
 
-    var p = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i)
-        || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i)
-        || html.match(/<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["']/i)
-        || html.match(/<link[^>]+rel=["']image_src["'][^>]+href=["']([^"']+)["']/i)
-        || html.match(/<video[^>]+poster=["']([^"']+)["']/i)
-        || html.match(/["']?poster["']?\s*[:=]\s*["']([^"']+\.(?:jpe?g|png|webp)[^"']*)["']/i)
-        || html.match(/(?:data-src|src)=["']((?:https?:)?\/\/[^"']*(?:hqporner|mydaddy|bigcdn)[^"']*\.(?:jpe?g|png|webp)[^"']*)["']/i);
-    var poster = p ? absUrl(p[1]) : "";
+    // Gom mọi ảnh ứng viên, bỏ emoji/logo/icon/placeholder rồi chọn ảnh video thật
+    var cands = [];
+    function addCand(u) { if (u) { u = absUrl(u); if (cands.indexOf(u) < 0) cands.push(u); } }
+    var cm0;
+    var cr0 = /<meta[^>]+(?:property|name)=["'](?:og:image|twitter:image)["'][^>]+content=["']([^"']+)["']/gi;
+    while ((cm0 = cr0.exec(html)) !== null) addCand(cm0[1]);
+    var cr1 = /<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["'](?:og:image|twitter:image)["']/gi;
+    while ((cm0 = cr1.exec(html)) !== null) addCand(cm0[1]);
+    var cr2 = /<link[^>]+rel=["']image_src["'][^>]+href=["']([^"']+)["']/gi;
+    while ((cm0 = cr2.exec(html)) !== null) addCand(cm0[1]);
+    var cr3 = /<video[^>]+poster=["']([^"']+)["']/gi;
+    while ((cm0 = cr3.exec(html)) !== null) addCand(cm0[1]);
+    var cr4 = /["']?poster["']?\s*[:=]\s*["']([^"']+)["']/gi;
+    while ((cm0 = cr4.exec(html)) !== null) addCand(cm0[1]);
+    var cr5 = /(?:data-src|data-original|src)=["']([^"']+\.(?:jpe?g|webp|png)(?:\?[^"']*)?)["']/gi;
+    while ((cm0 = cr5.exec(html)) !== null) addCand(cm0[1]);
+    var BAD = /emoji|twemoji|noto|1f[0-9a-f]{3}|logo|favicon|icon|sprite|placeholder|default|blank|avatar|banner|\.svg|\.gif|flag/i;
+    var poster = "";
+    for (var ci = 0; ci < cands.length; ci++) { if (!BAD.test(cands[ci])) { poster = cands[ci]; break; } }
+    console.log("DETAIL ảnh ứng viên (" + cands.length + "): " + cands.slice(0, 6).join(" | "));
     console.log("DETAIL poster = " + (poster || "KHÔNG THẤY"));
 
     var d = html.match(/<meta[^>]+(?:name="description"|property="og:description")[^>]+content="([^"]*)"/i);
