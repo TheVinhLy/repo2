@@ -1,6 +1,6 @@
 // =============================================================================
 // VAAPP Plugin: PornDos  (https://www.porndos.com)
-// Author: TheVinhLy  |  Version: 1.0.5
+// Author: TheVinhLy  |  Version: 1.0.6
 // Luồng lấy link:
 //   1. parseMovieDetail → lấy video_id số (vd "9456"), set episode.id = slug|data:9456
 //   2. getUrlDetail(slug, datasend="9456") → trả URL embed: /embed/9456/
@@ -66,7 +66,7 @@ function getManifest() {
     return JSON.stringify({
         "id": "porndos",
         "name": "PornDos",
-        "version": "1.0.5",
+        "version": "1.0.6",
         "description": "Free HD Porn Videos từ porndos.com",
         "author": "TheVinhLy",
         "baseUrl": "https://www.porndos.com",
@@ -336,12 +336,24 @@ function parseMovieDetail(html, apiUrl, datasend) {
         episodeDatasend = "";
     }
 
+    // DEBUG: thử tải trang embed ngay tại đây và ghi kết quả vào phần mô tả (toast không hiện được)
+    var dbgText = "";
+    if (vidId) {
+        try {
+            var er = httpRequest(BASE + "/embed/" + vidId + "/", { method: "GET", headers: { "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36", "Referer": BASE + "/" } });
+            var eb = (er && er.body) ? String(er.body) : "";
+            dbgText = "[DEBUG v1.0.6] embed status=" + (er && er.status) + " len=" + eb.length + " | stream=" + (findStream(eb) || "KHÔNG") + " | head=" + eb.replace(/\s+/g, " ").substring(0, 700);
+        } catch (e2) { dbgText = "[DEBUG v1.0.6] httpRequest lỗi: " + e2; }
+    } else {
+        dbgText = "[DEBUG v1.0.6] không thấy video_id trong trang. head=" + html.replace(/\s+/g, " ").substring(0, 500);
+    }
+
     return JSON.stringify({
         id: id,
         title: title,
         posterUrl: poster,
         backdropUrl: poster,
-        description: d ? decodeHtml(d[1]) : "",
+        description: (d ? decodeHtml(d[1]) : "") + "\n\n" + dbgText,
         servers: [{
             name: "PornDos",
             episodes: [{
