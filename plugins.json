@@ -40,7 +40,7 @@
         {
             "id": "sieutamphimembed",
             "name": "Sưu Tầm Phim (Embed)",
-            "version": "1.0.3",
+            "version": "1.0.4",
             "scriptUrl": "https://raw.githubusercontent.com/TheVinhLy/repo/main/plugins/sieutamphim_embed_plugin.js",
             "iconUrl": "https://www.sieutamphim.art/wp-content/themes/sieutamphim/assets/logo.png"
         },
