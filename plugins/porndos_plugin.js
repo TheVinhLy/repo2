@@ -1,6 +1,6 @@
 // =============================================================================
 // VAAPP Plugin: PornDos  (https://www.porndos.com)
-// Author: TheVinhLy  |  Version: 1.0.8
+// Author: TheVinhLy  |  Version: 1.0.9
 // Luồng lấy link:
 //   1. parseMovieDetail → lấy video_id số (vd "9456"), set episode.id = slug|data:9456
 //   2. getUrlDetail(slug, datasend="9456") → trả URL embed: /embed/9456/
@@ -66,7 +66,7 @@ function getManifest() {
     return JSON.stringify({
         "id": "porndos",
         "name": "PornDos",
-        "version": "1.0.8",
+        "version": "1.0.9",
         "description": "Free HD Porn Videos từ porndos.com",
         "author": "TheVinhLy",
         "baseUrl": "https://www.porndos.com",
@@ -336,37 +336,45 @@ function parseMovieDetail(html, apiUrl, datasend) {
         episodeDatasend = "";
     }
 
-    // DEBUG: thử tải trang embed ngay tại đây và ghi kết quả vào phần mô tả (toast không hiện được)
+    // DEBUG v1.0.9: ghi kết quả thăm dò vào mô tả (toast không hiện được)
     var dbgText = "";
-    if (vidId) {
-        try {
-            var er = httpRequest(BASE + "/embed/" + vidId + "/", { method: "GET", headers: { "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36", "Referer": BASE + "/" } });
-            var eb = (er && er.body) ? String(er.body) : "";
-            dbgText = "[DEBUG v1.0.8] embed status=" + (er && er.status) + " len=" + eb.length + " | stream=" + (findStream(eb) || "KHÔNG") + " | head=" + eb.replace(/\s+/g, " ").substring(0, 700);
-            // Thử tải link m3u8 với vài bộ header để xem bộ nào server chịu trả dữ liệu
-            var sUrl = findStream(eb);
-            if (sUrl) {
-                var UAm = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36";
-                var embedPage = BASE + "/embed/" + vidId + "/";
-                var sets = [
-                    { n: "A(ref=embed,origin=site)", h: { "User-Agent": UAm, "Referer": embedPage, "Origin": BASE } },
-                    { n: "B(ref=embed)", h: { "User-Agent": UAm, "Referer": embedPage } },
-                    { n: "C(ref=site)", h: { "User-Agent": UAm, "Referer": BASE + "/" } }
-                ];
-                for (var si = 0; si < sets.length; si++) {
-                    try {
-                        var sr = httpRequest(sUrl, { method: "GET", headers: sets[si].h });
-                        var sb = (sr && sr.body) ? String(sr.body) : "";
-                        var ct = "";
-                        try { ct = (sr.headers && (sr.headers["content-type"] || sr.headers["Content-Type"])) || ""; } catch (e5) {}
-                        dbgText += "\n\n[M3U8 " + sets[si].n + "] status=" + (sr && sr.status) + " ct=" + ct + " len=" + sb.length + " url=" + String((sr && sr.url) || "").substring(0, 160) + " | body=" + sb.replace(/\s+/g, " ").substring(0, 300);
-                    } catch (e3) { dbgText += "\n\n[M3U8 " + sets[si].n + "] lỗi: " + e3; }
-                }
+    function esc(x) { return String(x || "").replace(/</g, "‹").replace(/>/g, "›").replace(/\s+/g, " "); }
+    try {
+        // (1) Trang video có chứa link phát / từ khóa gì?
+        var hints = [];
+        var hre = /(okhls|m3u8|vkuser|okcdn|video_url|video_alt_url|\.mp4|get_file|Playerjs|<iframe|<video|<source)/gi;
+        var hm, hc = 0;
+        while ((hm = hre.exec(html)) !== null && hc < 8) {
+            hints.push(esc(html.substring(Math.max(0, hm.index - 60), hm.index + 140)));
+            hc++;
+            hre.lastIndex = hm.index + 140;
+        }
+        dbgText = "[DEBUG v1.0.9] vidId=" + vidId + " | trang video len=" + html.length + "\n[PAGE gợi ý " + hints.length + "] " + hints.join(" ## ");
+
+        // (2) Tải trang embed với nhiều bộ header, xem file=... có đổi không
+        if (vidId) {
+            var UAm = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36";
+            var UAd = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+            var embedPage = BASE + "/embed/" + vidId + "/";
+            var vpage = BASE + "/video/" + id + "/";
+            var tries = [
+                { n: "E1 mobile ref=video", u: embedPage, h: { "User-Agent": UAm, "Referer": vpage } },
+                { n: "E2 desktop ref=video", u: embedPage, h: { "User-Agent": UAd, "Referer": vpage, "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8", "Accept-Language": "en-US,en;q=0.9", "Sec-Fetch-Dest": "iframe", "Sec-Fetch-Mode": "navigate", "Sec-Fetch-Site": "same-origin" } },
+                { n: "E3 desktop no-ref", u: embedPage, h: { "User-Agent": UAd } }
+            ];
+            for (var ti = 0; ti < tries.length; ti++) {
+                try {
+                    var tr = httpRequest(tries[ti].u, { method: "GET", headers: tries[ti].h });
+                    var tb = (tr && tr.body) ? String(tr.body) : "";
+                    var fm2 = tb.match(/file:\s*"([^"]+)"/i);
+                    var scr = [];
+                    var sre = /<script[^>]+src="([^"]+)"/gi, sm;
+                    while ((sm = sre.exec(tb)) !== null) scr.push(sm[1]);
+                    dbgText += "\n[" + tries[ti].n + "] status=" + (tr && tr.status) + " len=" + tb.length + " file=" + (fm2 ? fm2[1] : "KHÔNG") + " scripts=" + scr.join(",");
+                } catch (e3) { dbgText += "\n[" + tries[ti].n + "] lỗi: " + e3; }
             }
-        } catch (e2) { dbgText = "[DEBUG v1.0.8] httpRequest lỗi: " + e2; }
-    } else {
-        dbgText = "[DEBUG v1.0.8] không thấy video_id trong trang. head=" + html.replace(/\s+/g, " ").substring(0, 500);
-    }
+        }
+    } catch (e2) { dbgText = "[DEBUG v1.0.9] lỗi: " + e2; }
 
     return JSON.stringify({
         id: id,
