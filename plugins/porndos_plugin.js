@@ -1,6 +1,6 @@
 // =============================================================================
 // VAAPP Plugin: PornDos  (https://www.porndos.com)
-// Author: TheVinhLy  |  Version: 1.0.14
+// Author: TheVinhLy  |  Version: 1.0.15
 // Luồng lấy link:
 //   1. parseMovieDetail → lấy video_id số (vd "9456"), set episode.id = slug|data:9456
 //   2. getUrlDetail(slug, datasend="9456") → trả URL embed: /embed/9456/
@@ -68,6 +68,20 @@ function parseFlashvars(html) {
     return out;
 }
 
+function b64encode(str) {
+    var chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    var out = "";
+    for (var i = 0; i < str.length; i += 3) {
+        var c1 = str.charCodeAt(i);
+        var c2 = i + 1 < str.length ? str.charCodeAt(i + 1) : NaN;
+        var c3 = i + 2 < str.length ? str.charCodeAt(i + 2) : NaN;
+        out += chars.charAt(c1 >> 2) + chars.charAt(((c1 & 3) << 4) | (isNaN(c2) ? 0 : c2 >> 4));
+        out += isNaN(c2) ? "=" : chars.charAt(((c2 & 15) << 2) | (isNaN(c3) ? 0 : c3 >> 6));
+        out += isNaN(c3) ? "=" : chars.charAt(c3 & 63);
+    }
+    return out;
+}
+
 // "/video/slug-name_v123/" → "slug-name_v123"
 function pathToSlug(href) {
     var m = String(href).match(/\/video\/([^"'?#|\s\/]+)/i);
@@ -92,7 +106,7 @@ function getManifest() {
     return JSON.stringify({
         "id": "porndos",
         "name": "PornDos",
-        "version": "1.0.14",
+        "version": "1.0.15",
         "description": "Free HD Porn Videos từ porndos.com",
         "author": "TheVinhLy",
         "baseUrl": "https://www.porndos.com",
@@ -440,6 +454,19 @@ function parseDetailResponse(html, apiUrl, datasend) {
     // Trang video chính: mở trực tiếp trong WebView để trình phát của site tự chạy
     // (trang /embed/ khi mở riêng sẽ bị chuyển sang thorcdn.com; get_stream/*.mp4 trả "error" ngoài trình duyệt)
     var vp = String(apiUrl || "").split("|")[0];
+    var vidM = html.match(/video_id:\s*'(\d+)'/i);
+    if (/\/video\/[^\/]+/i.test(vp) && vidM) {
+        // Trang embed chỉ chạy khi nằm trong iframe -> bọc trong trang HTML gọn
+        var wrap = '<html style="height:100%"><body style="margin:0;padding:0;height:100%;background:#000;overflow:hidden;">' +
+            '<iframe src="' + BASE + '/embed/' + vidM[1] + '/" style="position:absolute;top:0;left:0;width:100%;height:100%;border:none;background:#000;" allow="autoplay; fullscreen" allowfullscreen></iframe></body></html>';
+        console.log("parseDetailResponse: iframe embed " + vidM[1]);
+        return JSON.stringify({
+            url: "data:text/html;base64," + b64encode(wrap),
+            isEmbed: true,
+            headers: { "Referer": BASE + "/" },
+            subtitles: []
+        });
+    }
     if (/\/video\/[^\/]+/i.test(vp)) {
         console.log("parseDetailResponse: mở trang video " + vp);
         return JSON.stringify({
