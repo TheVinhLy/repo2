@@ -59,7 +59,7 @@ function getManifest() {
     return JSON.stringify({
         "id": "hqporner",
         "name": "HQPorner",
-        "version": "1.0.11",
+        "version": "1.0.12",
         "description": "Video HD 18+ từ hqporner.com",
         "author": "TheVinhLy",
         "baseUrl": "https://hqporner.com",
@@ -71,7 +71,7 @@ function getManifest() {
         "layoutType": "HORIZONTAL",
         "playerType": "exoplayer",
         "adblock": true,
-        "debug": true
+        "debug": false
     });
 }
 
@@ -210,6 +210,7 @@ function parseListResponse(html, apiUrl) {
                 title: title,
                 posterUrl: im ? absUrl(im[1]) : "",
                 description: dm ? dm[0] : "",
+                datasend: im ? "poster=" + encodeURIComponent(absUrl(im[1])) : "",
                 quality: "HD"
             });
         }
@@ -295,12 +296,13 @@ function parseMovieDetail(html, apiUrl, datasend) {
     while ((cm0 = cr4.exec(html)) !== null) addCand(cm0[1]);
     var cr5 = /(?:data-src|data-original|src)=["']([^"']+\.(?:jpe?g|webp|png)(?:\?[^"']*)?)["']/gi;
     while ((cm0 = cr5.exec(html)) !== null) addCand(cm0[1]);
-    var BAD = /emoji|twemoji|noto|1f[0-9a-f]{3}|logo|favicon|icon|sprite|placeholder|default|blank|avatar|banner|\.svg|\.gif|flag/i;
+    var BAD = /\/assets\/|apple-|images\/common|mainMenu|emoji|twemoji|noto|1f[0-9a-f]{3}|logo|favicon|icon|sprite|placeholder|default|blank|avatar|banner|\.svg|\.gif|flag/i;
     var poster = "";
-    for (var ci = 0; ci < cands.length; ci++) { if (!BAD.test(cands[ci])) { poster = cands[ci]; break; } }
+    var pm0 = String(datasend || "").match(/poster=([^&|]+)/);
+    if (pm0) { try { poster = decodeURIComponent(pm0[1]); } catch (e) { poster = pm0[1]; } }
+    for (var ci = 0; !poster && ci < cands.length; ci++) { if (!BAD.test(cands[ci])) { poster = cands[ci]; break; } }
     console.log("DETAIL ảnh ứng viên (" + cands.length + "): " + cands.slice(0, 6).join(" | "));
     console.log("DETAIL poster = " + (poster || "KHÔNG THẤY"));
-    var dbgInfo = "[DEBUG ảnh] tìm thấy " + cands.length + " | chọn: " + (poster || "KHÔNG") + " | " + cands.slice(0, 5).join(" ; ");
 
     var d = html.match(/<meta[^>]+(?:name="description"|property="og:description")[^>]+content="([^"]*)"/i);
 
@@ -337,7 +339,7 @@ function parseMovieDetail(html, apiUrl, datasend) {
         title: title,
         posterUrl: poster,
         backdropUrl: poster,
-        description: (d ? decodeHtml(d[1]) : "") + "\n\n" + dbgInfo,
+        description: d ? decodeHtml(d[1]) : "",
         servers: [
             {
                 name: "HQPorner",
