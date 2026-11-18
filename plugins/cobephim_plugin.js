@@ -3,7 +3,7 @@
 // Web Next.js (render sẵn HTML). Link m3u8 nằm trong trang xem phim (/phim/<slug>/tap-<id>)
 // =============================================================================
 
-var BASE = "https://cobephim.ink";
+var BASE = "https://cobephim.club";
 var UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36";
 
 function getManifest() {
