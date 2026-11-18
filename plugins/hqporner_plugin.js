@@ -31,6 +31,21 @@ function pathToId(href) {
     return m ? m[1] : "";
 }
 
+// Nhận href dạng "/actress/x", "actress/x", "https://hqporner.com/actress/x"
+var ACTRESS_RE = '<a[^>]+href=["\']?(?:https?:)?(?:\\/\\/(?:www\\.)?hqporner\\.com)?\\/?actress\\/([^"\'\\/?#\\s>]+)[^"\'>]*["\']?[^>]*>([\\s\\S]*?)<\\/a>';
+var CATEGORY_RE = '<a[^>]+href=["\']?(?:https?:)?(?:\\/\\/(?:www\\.)?hqporner\\.com)?\\/?category\\/([^"\'\\/?#\\s>]+)[^"\'>]*["\']?[^>]*>([\\s\\S]*?)<\\/a>';
+
+// Tên từ nội dung thẻ <a>, nếu rỗng thì lấy từ title="" / alt="" / slug
+function linkName(inner, tag, slug) {
+    var n = decodeHtml(inner);
+    if (!n) {
+        var t = String(tag || "").match(/(?:title|alt)=["']([^"']+)["']/i) || String(inner || "").match(/alt=["']([^"']+)["']/i);
+        n = t ? decodeHtml(t[1]) : "";
+    }
+    if (!n) n = decodeURIComponent(String(slug || "")).replace(/[-_+]/g, " ").replace(/\b\w/g, function (c) { return c.toUpperCase(); });
+    return n;
+}
+
 function pageFromUrl(url) {
     url = String(url || "").split("|")[0];
     var m = url.match(/[?&]p=(\d+)/) || url.match(/\/(\d+)\/?$/);
@@ -44,7 +59,7 @@ function getManifest() {
     return JSON.stringify({
         "id": "hqporner",
         "name": "HQPorner",
-        "version": "1.0.8",
+        "version": "1.0.9",
         "description": "Video HD 18+ từ hqporner.com",
         "author": "TheVinhLy",
         "baseUrl": "https://hqporner.com",
@@ -56,7 +71,7 @@ function getManifest() {
         "layoutType": "HORIZONTAL",
         "playerType": "exoplayer",
         "adblock": true,
-        "debug": false
+        "debug": true
     });
 }
 
@@ -90,6 +105,9 @@ function getUrlList(slug, filtersJson) {
     var filters = JSON.parse(filtersJson || "{}");
     var page = filters.page || 1;
     slug = String(slug || "hdporn").split("|")[0].replace(/^\/+|\/+$/g, "");
+    slug = slug.replace(/^https?:\/\/(?:www\.)?hqporner\.com\/?/i, "").replace(/^\/+|\/+$/g, "");
+    console.log("getUrlList slug=" + slug + " page=" + page);
+    if (slug.indexOf("actress/") === 0) slug = "actress/" + encodeURIComponent(decodeURIComponent(slug.substring(8)));
 
     if (slug === "categories" || slug === "actresses") {
         return BASE + "/" + slug + (page > 1 ? "/" + page : "");
@@ -138,9 +156,9 @@ function parseListResponse(html, apiUrl) {
 
         // --- Trang Thể loại: quality "CAT" -> App mở tiếp danh sách phim ---
         if (/\/categories/i.test(url)) {
-            var cr = /<a[^>]+href="\/category\/([^"\/]+)\/?"[^>]*>([\s\S]*?)<\/a>/gi;
+            var cr = new RegExp(CATEGORY_RE, "gi");
             while ((m = cr.exec(html)) !== null) {
-                var cname = decodeHtml(m[2]);
+                var cname = linkName(m[2], m[0], m[1]);
                 if (!cname || seen[m[1]]) continue;
                 seen[m[1]] = true;
                 var cimg = m[2].match(/<img[^>]+(?:data-src|src)="([^"]+)"/i);
@@ -151,9 +169,9 @@ function parseListResponse(html, apiUrl) {
 
         // --- Trang Diễn viên: quality "ACTRESS" ---
         if (/\/actresses/i.test(url)) {
-            var ar = /<a[^>]+href="\/actress\/([^"\/]+)\/?"[^>]*>([\s\S]*?)<\/a>/gi;
+            var ar = new RegExp(ACTRESS_RE, "gi");
             while ((m = ar.exec(html)) !== null) {
-                var aname = decodeHtml(m[2]);
+                var aname = linkName(m[2], m[0], m[1]);
                 if (!aname || seen[m[1]]) continue;
                 seen[m[1]] = true;
                 var aimg = m[2].match(/<img[^>]+(?:data-src|src)="([^"]+)"/i);
@@ -219,8 +237,33 @@ function parseSearchResponse(html, apiUrl) {
     return parseListResponse(html, apiUrl);
 }
 
+// Bảng chọn chất lượng: mặc định 1080p ở đầu; 4K chỉ hiện khi video có dấu hiệu 4K.
+// Mỗi mục: url = trang xem (App fetch), datasend = "q=<chiều cao>" mang sang parseDetailResponse.
+function buildQualityOptions(id, textForDetect) {
+    var pageUrl = BASE + "/hdporn/" + id;
+    var opts = [{ name: "1080p Full HD (mặc định)", url: pageUrl, datasend: "q=1080" }];
+    if (/\b4k\b|2160/i.test(textForDetect || "")) {
+        opts.push({ name: "4K (2160p) - nặng", url: pageUrl, datasend: "q=2160" });
+    }
+    opts.push({ name: "720p HD", url: pageUrl, datasend: "q=720" });
+    opts.push({ name: "360p", url: pageUrl, datasend: "q=360" });
+    return opts;
+}
+
+// Chọn bản cao nhất không vượt quá "want"; nếu không có thì lấy bản thấp nhất hiện có.
+function pickStream(streams, want) {
+    want = want || 1080;
+    var under = null, lowest = null;
+    for (var i = 0; i < streams.length; i++) {
+        var s = streams[i];
+        if (!lowest || s.q < lowest.q) lowest = s;
+        if (s.q > 0 && s.q <= want && (!under || s.q > under.q)) under = s;
+    }
+    return under || lowest || streams[0];
+}
+
 /**
- * Mỗi video = 1 server, 1 tập. slug tập là duy nhất theo id video.
+ * Mỗi video = 1 server, 1 tập (kèm bảng chọn chất lượng). slug tập duy nhất theo id video.
  * casts/category dùng Markdown link để App mở trang diễn viên/thể loại.
  */
 function parseMovieDetail(html, apiUrl, datasend) {
@@ -235,30 +278,38 @@ function parseMovieDetail(html, apiUrl, datasend) {
         || html.match(/<meta[^>]+property="og:title"[^>]+content="([^"]+)"/i);
     var title = t ? decodeHtml(t[1]) : "Video";
 
-    var p = html.match(/<meta[^>]+property="og:image"[^>]+content="([^"]+)"/i)
-        || html.match(/<video[^>]+poster="([^"]+)"/i);
+    var p = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i)
+        || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i)
+        || html.match(/<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["']/i)
+        || html.match(/<link[^>]+rel=["']image_src["'][^>]+href=["']([^"']+)["']/i)
+        || html.match(/<video[^>]+poster=["']([^"']+)["']/i)
+        || html.match(/["']?poster["']?\s*[:=]\s*["']([^"']+\.(?:jpe?g|png|webp)[^"']*)["']/i)
+        || html.match(/(?:data-src|src)=["']((?:https?:)?\/\/[^"']*(?:hqporner|mydaddy|bigcdn)[^"']*\.(?:jpe?g|png|webp)[^"']*)["']/i);
     var poster = p ? absUrl(p[1]) : "";
+    console.log("DETAIL poster = " + (poster || "KHÔNG THẤY"));
 
     var d = html.match(/<meta[^>]+(?:name="description"|property="og:description")[^>]+content="([^"]*)"/i);
 
     var casts = [];
     var seenA = {};
-    var cr = /<a[^>]+href="\/actress\/([^"\/]+)\/?"[^>]*>([\s\S]*?)<\/a>/gi;
+    var cr = new RegExp(ACTRESS_RE, "gi");
     var cm;
     while ((cm = cr.exec(html)) !== null) {
-        var name = decodeHtml(cm[2]);
-        if (name && !seenA[cm[1]]) {
-            seenA[cm[1]] = true;
-            casts.push("[" + name + "](actress/" + cm[1] + ")");
+        var aslug = cm[1];
+        var name = linkName(cm[2], cm[0], aslug);
+        if (name && !seenA[aslug]) {
+            seenA[aslug] = true;
+            casts.push("[" + name + "](actress/" + aslug + ")");
         }
     }
+    console.log("DETAIL diễn viên: " + casts.length + (casts.length ? " vd " + casts[0] : ""));
 
     var cats = [];
     var seenC = {};
-    var gr = /<a[^>]+href="\/category\/([^"\/]+)\/?"[^>]*>([\s\S]*?)<\/a>/gi;
+    var gr = new RegExp(CATEGORY_RE, "gi");
     var gm;
     while ((gm = gr.exec(html)) !== null) {
-        var cn = decodeHtml(gm[2]);
+        var cn = linkName(gm[2], gm[0], gm[1]);
         if (cn && !seenC[gm[1]]) {
             seenC[gm[1]] = true;
             cats.push("[" + cn + "](category/" + gm[1] + ")");
@@ -277,11 +328,16 @@ function parseMovieDetail(html, apiUrl, datasend) {
             {
                 name: "HQPorner",
                 episodes: [
-                    { id: id, name: "Full", slug: id || "full" }
+                    {
+                        name: "Full",
+                        slug: id || "full",
+                        id: "",
+                        ids: buildQualityOptions(id, html + " " + title)
+                    }
                 ]
             }
         ],
-        quality: "HD",
+        quality: /4k|2160/i.test(title) ? "4K" : "HD",
         status: "Full",
         duration: dur ? dur[1] + " Phút" : "",
         casts: casts.join(", "),
@@ -313,8 +369,13 @@ function parseDetailResponse(html, apiUrl, datasend) {
         return JSON.stringify({ url: "", isEmbed: false, headers: { "Referer": referer }, subtitles: [] });
     }
 
+    // Chất lượng người dùng chọn (datasend "q=720"); mặc định 1080. Gắn |data:q=… để
+    // parseEmbedResponse đọc lại (App cắt phần |data trước khi gửi request).
+    var qm = String(datasend || "").match(/q=(\d+)/);
+    var wantQ = qm ? qm[1] : "1080";
+
     return JSON.stringify({
-        url: absUrl(m[1]),
+        url: absUrl(m[1]) + "|data:q=" + wantQ,
         // App fetch trang player kèm Referer hqporner (mydaddy.cc chặn khi thiếu Referer),
         // rồi gọi parseEmbedResponse() để lấy link mp4 thật (giống cách MissAV lấy m3u8).
         isEmbed: true,
@@ -343,12 +404,14 @@ function parseEmbedResponse(html, sourceUrl) {
     var kpos = html.search(/mp4|m3u8|eval\(|atob\(|bigcdn/i);
     if (kpos !== -1) console.log("EMBED ctx=" + html.substring(Math.max(0, kpos - 300), kpos + 500));
     var src = String(sourceUrl || "").split("|")[0];
+    var wm = String(sourceUrl || "").match(/\|data:q=(\d+)/);
+    var want = wm ? parseInt(wm[1], 10) : 1080;
     var om = src.match(/^(https?:\/\/[^\/]+)/i);
     var origin = om ? om[1] : BASE;
 
     var streams = extractStreams(html);
     if (streams.length > 0) {
-        var best = streams[0];
+        var best = pickStream(streams, want);
         return JSON.stringify({
             url: best.url,
             isEmbed: false,
