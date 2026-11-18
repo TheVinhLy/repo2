@@ -1,6 +1,6 @@
 // =============================================================================
 // VAAPP Plugin: PornDos  (https://www.porndos.com)
-// Author: TheVinhLy  |  Version: 1.0.6
+// Author: TheVinhLy  |  Version: 1.0.7
 // Luồng lấy link:
 //   1. parseMovieDetail → lấy video_id số (vd "9456"), set episode.id = slug|data:9456
 //   2. getUrlDetail(slug, datasend="9456") → trả URL embed: /embed/9456/
@@ -66,7 +66,7 @@ function getManifest() {
     return JSON.stringify({
         "id": "porndos",
         "name": "PornDos",
-        "version": "1.0.6",
+        "version": "1.0.7",
         "description": "Free HD Porn Videos từ porndos.com",
         "author": "TheVinhLy",
         "baseUrl": "https://www.porndos.com",
@@ -342,10 +342,21 @@ function parseMovieDetail(html, apiUrl, datasend) {
         try {
             var er = httpRequest(BASE + "/embed/" + vidId + "/", { method: "GET", headers: { "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36", "Referer": BASE + "/" } });
             var eb = (er && er.body) ? String(er.body) : "";
-            dbgText = "[DEBUG v1.0.6] embed status=" + (er && er.status) + " len=" + eb.length + " | stream=" + (findStream(eb) || "KHÔNG") + " | head=" + eb.replace(/\s+/g, " ").substring(0, 700);
-        } catch (e2) { dbgText = "[DEBUG v1.0.6] httpRequest lỗi: " + e2; }
+            dbgText = "[DEBUG v1.0.7] embed status=" + (er && er.status) + " len=" + eb.length + " | stream=" + (findStream(eb) || "KHÔNG") + " | head=" + eb.replace(/\s+/g, " ").substring(0, 700);
+            // Thử tải luôn link m3u8 để xem server trả gì
+            var sUrl = findStream(eb);
+            if (sUrl) {
+                try {
+                    var sr = httpRequest(sUrl, { method: "GET", headers: { "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36", "Referer": BASE + "/", "Origin": BASE } });
+                    var sb = (sr && sr.body) ? String(sr.body) : "";
+                    var hk = "";
+                    try { hk = JSON.stringify(sr.headers || {}).substring(0, 400); } catch (e4) {}
+                    dbgText += "\n\n[M3U8] status=" + (sr && sr.status) + " keys=" + Object.keys(sr || {}).join(",") + " len=" + sb.length + " headers=" + hk + " | body=" + sb.replace(/\s+/g, " ").substring(0, 600);
+                } catch (e3) { dbgText += "\n\n[M3U8] lỗi: " + e3; }
+            }
+        } catch (e2) { dbgText = "[DEBUG v1.0.7] httpRequest lỗi: " + e2; }
     } else {
-        dbgText = "[DEBUG v1.0.6] không thấy video_id trong trang. head=" + html.replace(/\s+/g, " ").substring(0, 500);
+        dbgText = "[DEBUG v1.0.7] không thấy video_id trong trang. head=" + html.replace(/\s+/g, " ").substring(0, 500);
     }
 
     return JSON.stringify({
