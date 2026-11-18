@@ -1,6 +1,6 @@
 // =============================================================================
 // VAAPP Plugin: PornDos  (https://www.porndos.com)
-// Author: TheVinhLy  |  Version: 1.0.11
+// Author: TheVinhLy  |  Version: 1.0.12
 // Luồng lấy link:
 //   1. parseMovieDetail → lấy video_id số (vd "9456"), set episode.id = slug|data:9456
 //   2. getUrlDetail(slug, datasend="9456") → trả URL embed: /embed/9456/
@@ -92,7 +92,7 @@ function getManifest() {
     return JSON.stringify({
         "id": "porndos",
         "name": "PornDos",
-        "version": "1.0.11",
+        "version": "1.0.12",
         "description": "Free HD Porn Videos từ porndos.com",
         "author": "TheVinhLy",
         "baseUrl": "https://www.porndos.com",
@@ -380,27 +380,50 @@ function parseMovieDetail(html, apiUrl, datasend) {
     }
     console.log("DETAIL flashvars=" + fvs.length);
 
-    // DEBUG v1.0.11: thử tải 1KB đầu của từng bản mp4, ghi kết quả vào mô tả
+    // DEBUG v1.0.12: thử nhiều kiểu header/cookie để xem server nào chịu trả mp4 (ghi vào mô tả)
     var dbgText = "";
     try {
         var UAm = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36";
         var probeUrl = fvs.length ? fvs[fvs.length - 1].url : "";
+        dbgText = "[DEBUG v1.0.12] probe=" + probeUrl;
+        // lấy cookie từ trang video
+        var ck = "", ckRaw = "";
+        try {
+            var pg = httpRequest(pageUrl, { method: "GET", headers: { "User-Agent": UAm, "Referer": BASE + "/" } });
+            var sc = pg && pg.setCookies;
+            ckRaw = JSON.stringify(sc || "").substring(0, 200);
+            var arr = Object.prototype.toString.call(sc) === "[object Array]" ? sc : (sc ? [String(sc)] : []);
+            var parts = [];
+            for (var ci2 = 0; ci2 < arr.length; ci2++) {
+                var one = typeof arr[ci2] === "string" ? arr[ci2] : (arr[ci2] && arr[ci2].name ? arr[ci2].name + "=" + arr[ci2].value : "");
+                one = String(one).split(";")[0];
+                if (one) parts.push(one);
+            }
+            ck = parts.join("; ");
+        } catch (e8) { ckRaw = "lỗi " + e8; }
+        dbgText += "\n[COOKIE] raw=" + ckRaw + " dùng=" + ck.substring(0, 120);
+
+        var SF = { "Sec-Fetch-Dest": "video", "Sec-Fetch-Mode": "no-cors", "Sec-Fetch-Site": "same-origin" };
+        function mk(extra) {
+            var h = { "User-Agent": UAm, "Accept": "*/*", "Accept-Language": "en-US,en;q=0.9", "Range": "bytes=0-1023" };
+            for (var k in extra) h[k] = extra[k];
+            return h;
+        }
         var hsets = [
-            { n: "H1 ref=site+range", h: { "User-Agent": UAm, "Referer": BASE + "/", "Range": "bytes=0-1023" } },
-            { n: "H2 ref=video+range", h: { "User-Agent": UAm, "Referer": pageUrl, "Range": "bytes=0-1023" } },
-            { n: "H3 no-ref+range", h: { "User-Agent": UAm, "Range": "bytes=0-1023" } }
+            { n: "P1 cookie+ref=video", h: mk({ "Referer": pageUrl, "Cookie": ck }) },
+            { n: "P2 sec-fetch+ref=video", h: mk({ "Referer": pageUrl, "Sec-Fetch-Dest": "video", "Sec-Fetch-Mode": "no-cors", "Sec-Fetch-Site": "same-origin" }) },
+            { n: "P3 cookie+sec-fetch+ref=video", h: mk({ "Referer": pageUrl, "Cookie": ck, "Sec-Fetch-Dest": "video", "Sec-Fetch-Mode": "no-cors", "Sec-Fetch-Site": "same-origin" }) },
+            { n: "P4 range=0- ref=video", h: { "User-Agent": UAm, "Accept": "*/*", "Referer": pageUrl, "Range": "bytes=0-" } }
         ];
-        dbgText = "[DEBUG v1.0.11] probe=" + probeUrl;
         for (var hi = 0; probeUrl && hi < hsets.length; hi++) {
             try {
                 var pr = httpRequest(probeUrl, { method: "GET", headers: hsets[hi].h });
-                var ph = "";
-                try { ph = JSON.stringify(pr.headers || {}).substring(0, 380); } catch (e7) {}
+                var ph = pr && pr.headers ? pr.headers : {};
                 var pb = (pr && pr.body) ? String(pr.body) : "";
-                dbgText += "\n[" + hsets[hi].n + "] status=" + (pr && pr.status) + " ok=" + (pr && pr.isSuccessful) + " url=" + String((pr && pr.url) || "").substring(0, 150) + " bodyLen=" + pb.length + " enc=" + (pr && pr.bodyEncoding) + " headers=" + ph + " body=" + pb.replace(/[^\x20-\x7e]/g, ".").substring(0, 120);
+                dbgText += "\n[" + hsets[hi].n + "] status=" + (pr && pr.status) + " url=" + String((pr && pr.url) || "").substring(0, 120) + " ct=" + (ph["content-type"] || "") + " cl=" + (ph["content-length"] || "") + " loc=" + (ph["location"] || "") + " bodyLen=" + pb.length + " body=" + pb.replace(/[^\x20-\x7e]/g, ".").substring(0, 60);
             } catch (e6) { dbgText += "\n[" + hsets[hi].n + "] lỗi: " + e6; }
         }
-    } catch (e5) { dbgText = "[DEBUG v1.0.11] lỗi: " + e5; }
+    } catch (e5) { dbgText = "[DEBUG v1.0.12] lỗi: " + e5; }
 
     return JSON.stringify({
         id: id,
