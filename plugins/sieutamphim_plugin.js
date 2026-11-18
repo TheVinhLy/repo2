@@ -12,7 +12,7 @@ function getManifest() {
     return JSON.stringify({
         "id": "sieutamphim",
         "name": "Sưu Tầm Phim",
-        "version": "2.0.4",
+        "version": "2.0.5",
         "description": "Phim lồng tiếng, thuyết minh, tiếng Việt tại sieutamphim.art",
         "author": "TheVinhLy",
         "baseUrl": "https://www.sieutamphim.art",
@@ -477,8 +477,11 @@ function parseEmbedResponse(html, sourceUrl) {
         // short.ink / short.icu -> abyssplayer; bọc trong iframe để tránh bị chuyển hướng
         real = real.replace(/https?:\/\/(short\.ink|short\.icu)\//, "https://abyssplayer.com/");
         if (/abyss/i.test(real)) {
-            var wrap = '<html><body style="margin:0;padding:0;background:#000;"><iframe src="' + real +
-                '" style="width:100%;height:100%;border:none;" allowfullscreen></iframe></body></html>';
+            var wrap = '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
+                '<link rel="preconnect" href="https://abysscdn.com"><link rel="preconnect" href="https://abyssplayer.com">' +
+                '<style>html,body{margin:0;padding:0;width:100%;height:100%;background:#000;overflow:hidden}' +
+                'iframe{position:fixed;top:0;left:0;width:100vw;height:100vh;border:0;display:block;background:#000}</style></head><body>' +
+                '<iframe src="' + real + '" allow="autoplay; fullscreen; encrypted-media; picture-in-picture" allowfullscreen></iframe></body></html>';
             return JSON.stringify({
                 url: "data:text/html;base64," + b64encode(wrap),
                 isEmbed: true,
