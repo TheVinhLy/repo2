@@ -1,6 +1,6 @@
 // =============================================================================
 // VAAPP Plugin: PornDos  (https://www.porndos.com)
-// Author: TheVinhLy  |  Version: 1.0.13
+// Author: TheVinhLy  |  Version: 1.0.14
 // Luồng lấy link:
 //   1. parseMovieDetail → lấy video_id số (vd "9456"), set episode.id = slug|data:9456
 //   2. getUrlDetail(slug, datasend="9456") → trả URL embed: /embed/9456/
@@ -92,7 +92,7 @@ function getManifest() {
     return JSON.stringify({
         "id": "porndos",
         "name": "PornDos",
-        "version": "1.0.13",
+        "version": "1.0.14",
         "description": "Free HD Porn Videos từ porndos.com",
         "author": "TheVinhLy",
         "baseUrl": "https://www.porndos.com",
@@ -164,19 +164,6 @@ function getUrlSearch(keyword, filtersJson) {
 function getUrlDetail(slug, datasend) {
     if (!slug) return "";
     slug = String(slug).split("|")[0];
-
-    // datasend "q=720" -> tải trang video, parseDetailResponse sẽ chọn bản mp4 theo chất lượng
-    if (datasend && /^q=\d+/i.test(String(datasend).trim())) {
-        if (slug.indexOf("http") === 0) return slug;
-        return BASE + "/video/" + slug.replace(/^\/+/, "").replace(/^video\//, "").replace(/\/+$/, "") + "/";
-    }
-
-    // datasend là video_id số -> trả embed URL
-    if (datasend && /^\d+$/.test(String(datasend).trim())) {
-        var vid = String(datasend).trim();
-        console.log("getUrlDetail: embed URL /embed/" + vid + "/");
-        return BASE + "/embed/" + vid + "/";
-    }
 
     // Fallback
     if (slug.indexOf("http") === 0) return slug;
@@ -368,7 +355,7 @@ function parseMovieDetail(html, apiUrl, datasend) {
         episodeDatasend = "";
     }
 
-    var epObj = { id: episodeId, name: "Full", slug: id || "full", datasend: episodeDatasend };
+    var epObj = { id: id, name: "Full", slug: id || "full", datasend: "" };
 
     return JSON.stringify({
         id: id,
@@ -449,6 +436,22 @@ function streamResult(url, ref) {
 function parseDetailResponse(html, apiUrl, datasend) {
     html = String(html || "");
     console.log("parseDetailResponse: url=" + apiUrl + " len=" + html.length);
+
+    // Trang video chính: mở trực tiếp trong WebView để trình phát của site tự chạy
+    // (trang /embed/ khi mở riêng sẽ bị chuyển sang thorcdn.com; get_stream/*.mp4 trả "error" ngoài trình duyệt)
+    var vp = String(apiUrl || "").split("|")[0];
+    if (/\/video\/[^\/]+/i.test(vp)) {
+        console.log("parseDetailResponse: mở trang video " + vp);
+        return JSON.stringify({
+            url: vp,
+            isEmbed: true,
+            headers: {
+                "Referer": BASE + "/",
+                "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
+            },
+            subtitles: []
+        });
+    }
 
     // Link get_stream/*.mp4 và m3u8 bị site chặn khi tải ngoài trình duyệt (trả "error").
     // Nên mở chính trang embed của site trong WebView, để trình phát của site tự chạy.
