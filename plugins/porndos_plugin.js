@@ -29,6 +29,19 @@ function decodeHtml(s) {
         .replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
 }
 
+// Tên từ nội dung thẻ <a>; nếu rỗng lấy title/alt; cuối cùng lấy từ slug (bỏ hậu tố _c22/_p9/_s1)
+function linkName(inner, tag, slug) {
+    var n = decodeHtml(inner);
+    if (!n) {
+        var t = String(tag || "").match(/(?:title|alt)=["']([^"']+)["']/i) || String(inner || "").match(/alt=["']([^"']+)["']/i);
+        n = t ? decodeHtml(t[1]) : "";
+    }
+    if (!n || /^https?:\/\//i.test(n)) {
+        n = String(slug || "").replace(/_[cps]\d+$/i, "").replace(/[-_+]/g, " ").replace(/\b\w/g, function (c) { return c.toUpperCase(); });
+    }
+    return n;
+}
+
 // "/video/slug-name_v123/" → "slug-name_v123"
 function pathToSlug(href) {
     var m = String(href).match(/\/video\/([^"'?#|\s\/]+)/i);
@@ -63,9 +76,9 @@ function getManifest() {
         "isAdult": true,
         "type": "MOVIE",
         "layoutType": "HORIZONTAL",
-        "playerType": "exoplayer",
+        "playerType": "auto",
         "adblock": true,
-        "debug": false
+        "debug": true
     });
 }
 
@@ -281,45 +294,35 @@ function parseMovieDetail(html, apiUrl, datasend) {
     // Duration
     var dur = html.match(/(\d{1,2}:\d{2}(?::\d{2})?)/);
 
-    // Categories
+    // Categories + Pornstars: luôn hiển thị TÊN (không để URL/slug)
     var cats = [];
     var seenC = {};
-    var catRe = /href="(https?:\/\/www\.porndos\.com\/category\/([^"\/]+)\/?)"[^>]*>[\s\S]*?<\/a>/gi;
+    var cr = /<a\s[^>]*href="(?:https?:\/\/www\.porndos\.com)?\/category\/([^"\/?#]+)\/?"[^>]*>([\s\S]*?)<\/a>/gi;
     var cm;
-    while ((cm = catRe.exec(html)) !== null) {
-        var catSlug = cm[1].replace(BASE, "").replace(/^\/|\/$/g, "");
-        // Lấy text (bỏ tag)
-        var nameRaw = cm[0].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-        var nameStr = nameRaw.split(/\s+/).filter(function(w){ return w.length > 1; }).join(" ").trim();
-        if (nameStr && !seenC[catSlug] && catSlug) {
-            seenC[catSlug] = true;
-            cats.push("[" + nameStr + "](" + catSlug + ")");
-        }
+    while ((cm = cr.exec(html)) !== null) {
+        var cs = cm[1];
+        if (seenC[cs]) continue;
+        var cn = linkName(cm[2], cm[0], cs);
+        if (cn) { seenC[cs] = true; cats.push("[" + cn + "](category/" + cs + ")"); }
     }
-    // Fallback: video_categories trong flashvars
     if (cats.length === 0) {
         var vcMatch = html.match(/video_categories:\s*'([^']+)'/i);
         if (vcMatch) {
-            vcMatch[1].split(",").forEach(function(c) {
-                c = c.trim(); if (c) cats.push(c);
-            });
+            vcMatch[1].split(",").forEach(function(c) { c = c.trim(); if (c) cats.push(c); });
         }
     }
 
-    // Pornstars
     var casts = [];
     var seenA = {};
-    var castRe = /href="(https?:\/\/www\.porndos\.com\/pornstar\/([^"\/]+)\/?)"[^>]*>[\s\S]*?<\/a>/gi;
+    var ar = /<a\s[^>]*href="(?:https?:\/\/www\.porndos\.com)?\/pornstar\/([^"\/?#]+)\/?"[^>]*>([\s\S]*?)<\/a>/gi;
     var am;
-    while ((am = castRe.exec(html)) !== null) {
-        var psSlug = am[1].replace(BASE, "").replace(/^\/|\/$/g, "");
-        var pNameRaw = am[0].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-        var pName = pNameRaw.split(/\s+/).filter(function(w){ return w.length > 1; }).join(" ").trim();
-        if (pName && !seenA[psSlug] && psSlug) {
-            seenA[psSlug] = true;
-            casts.push("[" + pName + "](" + psSlug + ")");
-        }
+    while ((am = ar.exec(html)) !== null) {
+        var as = am[1];
+        if (seenA[as]) continue;
+        var an = linkName(am[2], am[0], as);
+        if (an) { seenA[as] = true; casts.push("[" + an + "](pornstar/" + as + ")"); }
     }
+    console.log("DETAIL cats=" + cats.length + " casts=" + casts.length + (cats[0] ? " vd " + cats[0] : ""));
 
     // Nếu có vidId → episode dùng datasend để truyền qua getUrlDetail → /embed/{id}/
     // Nếu không có vidId → fallback: episode.id = trang chi tiết, parseDetailResponse tự xử lý
@@ -357,103 +360,93 @@ function parseMovieDetail(html, apiUrl, datasend) {
 }
 
 /**
- * Parse embed page (HTML ~1KB) để lấy m3u8 thật từ thorcdn.com
- *
- * Embed page chứa:
- *   var player = new Playerjs({id:"kt_player", file:"https://bg-X.thorcdn.com/okhls/ID//master.m3u8", ...});
+ * Tìm link phát trong HTML (embed page hoặc trang video).
+ * Ưu tiên m3u8 > mp4 > webm; bỏ qua clip xem trước /images/video/*.webm
+ */
+function findStream(html) {
+    var h = String(html || "").replace(/\\\//g, "/").replace(/&amp;/g, "&");
+    var found = { m3u8: "", mp4: "", webm: "", cdn: "" };
+
+    // Playerjs: file:"[360p]url,[720p]url" hoặc file:"url"
+    var fm = h.match(/["']?file["']?\s*[:=]\s*["']([^"']+)["']/i);
+    if (fm) {
+        var parts = fm[1].split(",");
+        for (var i = 0; i < parts.length; i++) {
+            var u = parts[i].replace(/^\[[^\]]*\]/, "").trim();
+            if (/^(?:https?:)?\/\//i.test(u) || u.charAt(0) === "/") consider(u);
+        }
+    }
+    // Mọi URL có đuôi media
+    var re = /["'`(]((?:https?:)?\/\/[^"'`\s)]+?\.(m3u8|mp4|webm)(?:\?[^"'`\s)]*)?)["'`)]/gi;
+    var m;
+    while ((m = re.exec(h)) !== null) consider(m[1]);
+    // src tương đối
+    var re2 = /["'`](\/[^"'`\s]+?\.(m3u8|mp4|webm)(?:\?[^"'`\s]*)?)["'`]/gi;
+    while ((m = re2.exec(h)) !== null) consider(m[1]);
+
+    // Link CDN của VK/OK không có đuôi file (vd https://ok6-30.vkuser.net/?expires=...)
+    var re3 = /["'`]((?:https?:)?\/\/[^"'`\s]*(?:vkuser\.net|okcdn\.ru|mycdn\.me|vkvideo\.ru)[^"'`\s]*)["'`]/gi;
+    while ((m = re3.exec(h)) !== null) { if (!found.cdn) found.cdn = absUrl(m[1]); }
+
+    function consider(u) {
+        if (/\/images\/(?:video|thumb)\//i.test(u)) return; // clip xem trước
+        var ext = (u.match(/\.(m3u8|mp4|webm)(?:[?#]|$)/i) || [])[1];
+        if (!ext) return;
+        ext = ext.toLowerCase();
+        if (!found[ext]) found[ext] = absUrl(u);
+    }
+    return found.m3u8 || found.mp4 || found.cdn || found.webm || "";
+}
+
+function streamResult(url) {
+    var isM3u8 = /\.m3u8/i.test(url);
+    return JSON.stringify({
+        url: url,
+        isEmbed: false,
+        mimeType: isM3u8 ? "application/x-mpegURL" : (/\.webm/i.test(url) ? "video/webm" : "video/mp4"),
+        headers: {
+            "Referer": "https://www.porndos.com/",
+            "Origin": "https://www.porndos.com",
+            "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
+        },
+        subtitles: []
+    });
+}
+
+/**
+ * Parse embed page (hoặc trang video) để lấy link phát thật.
  */
 function parseDetailResponse(html, apiUrl, datasend) {
     html = String(html || "");
     console.log("parseDetailResponse: url=" + apiUrl + " len=" + html.length);
-    console.log("parseDetailResponse head=" + html.substring(0, 500));
 
-    var referer = BASE + "/";
-
-    // Trường hợp 1: embed page với Playerjs → lấy file m3u8
-    var m3u8Match = html.match(/file:\s*["']([^"']+\.m3u8[^"']*)['"]/i)
-        || html.match(/"file"\s*:\s*"([^"]+\.m3u8[^"]*)"/i)
-        || html.match(/file\s*=\s*["']([^"']+\.m3u8[^"']*)['"]/i);
-
-    if (m3u8Match) {
-        var m3u8Url = m3u8Match[1];
-        console.log("parseDetailResponse: found m3u8=" + m3u8Url);
-        return JSON.stringify({
-            url: m3u8Url,
-            isEmbed: false,
-            mimeType: "application/x-mpegURL",
-            headers: {
-                "Referer": "https://www.porndos.com/",
-                "Origin": "https://www.porndos.com",
-                "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
-            },
-            subtitles: []
-        });
+    var stream = findStream(html);
+    if (stream) {
+        console.log("parseDetailResponse: stream=" + stream);
+        return streamResult(stream);
     }
 
-    // Trường hợp 2: trang video gốc (fallback khi không có datasend) → tìm /embed/ID/
+    // Trang video gốc → tìm /embed/ID/
     var embedMatch = html.match(/["']((?:https?:\/\/www\.porndos\.com)?\/embed\/(\d+)\/?)["']/i);
-    if (embedMatch) {
+    if (embedMatch && String(apiUrl || "").indexOf("/embed/") < 0) {
         var embedUrl = embedMatch[1].indexOf("http") === 0 ? embedMatch[1] : BASE + embedMatch[1];
-        console.log("parseDetailResponse: found embed URL=" + embedUrl);
-        return JSON.stringify({
-            url: embedUrl,
-            isEmbed: true,
-            headers: {
-                "Referer": referer,
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-            },
-            subtitles: []
-        });
+        console.log("parseDetailResponse: embed=" + embedUrl);
+        return JSON.stringify({ url: embedUrl, isEmbed: true, headers: { "Referer": BASE + "/" }, subtitles: [] });
     }
 
-    // Trường hợp 3: video_id trong flashvars → build embed URL
-    var vidIdFallback = html.match(/video_id:\s*'(\d+)'/i);
-    if (vidIdFallback) {
-        var fallbackEmbed = BASE + "/embed/" + vidIdFallback[1] + "/";
-        console.log("parseDetailResponse: fallback embed=" + fallbackEmbed);
-        return JSON.stringify({
-            url: fallbackEmbed,
-            isEmbed: true,
-            headers: {
-                "Referer": referer,
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-            },
-            subtitles: []
-        });
-    }
-
-    console.log("parseDetailResponse: không tìm thấy stream nào");
-    return JSON.stringify({ url: "", isEmbed: false, headers: { "Referer": referer }, subtitles: [] });
+    // Không thấy link: để App tự bóc tách từ trang embed, kèm log để debug
+    console.log("KHÔNG THẤY LINK. head=" + html.replace(/\s+/g, " ").substring(0, 600));
+    var fallbackUrl = String(apiUrl || "");
+    if (fallbackUrl.indexOf("http") !== 0) fallbackUrl = "";
+    return JSON.stringify({ url: fallbackUrl, isEmbed: !!fallbackUrl, headers: { "Referer": BASE + "/" }, subtitles: [] });
 }
 
-/**
- * Bước thứ 2 nếu parseDetailResponse trả isEmbed:true (embed page)
- * Embed page chứa Playerjs với m3u8 từ thorcdn.com
- */
 function parseEmbedResponse(html, sourceUrl) {
     html = String(html || "");
     console.log("parseEmbedResponse: url=" + sourceUrl + " len=" + html.length);
-
-    // Lấy m3u8 từ Playerjs
-    var m3u8Match = html.match(/file:\s*["']([^"']+\.m3u8[^"']*)['"]/i)
-        || html.match(/"file"\s*:\s*"([^"]+\.m3u8[^"]*)"/i);
-
-    if (m3u8Match) {
-        var m3u8Url = m3u8Match[1];
-        console.log("parseEmbedResponse: m3u8=" + m3u8Url);
-        return JSON.stringify({
-            url: m3u8Url,
-            isEmbed: false,
-            mimeType: "application/x-mpegURL",
-            headers: {
-                "Referer": "https://www.porndos.com/",
-                "Origin": "https://www.porndos.com",
-                "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
-            }
-        });
-    }
-
-    console.log("parseEmbedResponse: không thấy m3u8");
+    var stream = findStream(html);
+    if (stream) return streamResult(stream);
+    console.log("parseEmbedResponse: KHÔNG THẤY LINK head=" + html.replace(/\s+/g, " ").substring(0, 600));
     return JSON.stringify({ url: "", isEmbed: false });
 }
 
