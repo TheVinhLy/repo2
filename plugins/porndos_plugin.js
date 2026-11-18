@@ -1,6 +1,6 @@
 // =============================================================================
 // VAAPP Plugin: PornDos  (https://www.porndos.com)
-// Author: TheVinhLy  |  Version: 1.0.10
+// Author: TheVinhLy  |  Version: 1.0.11
 // Luồng lấy link:
 //   1. parseMovieDetail → lấy video_id số (vd "9456"), set episode.id = slug|data:9456
 //   2. getUrlDetail(slug, datasend="9456") → trả URL embed: /embed/9456/
@@ -92,7 +92,7 @@ function getManifest() {
     return JSON.stringify({
         "id": "porndos",
         "name": "PornDos",
-        "version": "1.0.10",
+        "version": "1.0.11",
         "description": "Free HD Porn Videos từ porndos.com",
         "author": "TheVinhLy",
         "baseUrl": "https://www.porndos.com",
@@ -380,12 +380,34 @@ function parseMovieDetail(html, apiUrl, datasend) {
     }
     console.log("DETAIL flashvars=" + fvs.length);
 
+    // DEBUG v1.0.11: thử tải 1KB đầu của từng bản mp4, ghi kết quả vào mô tả
+    var dbgText = "";
+    try {
+        var UAm = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36";
+        var probeUrl = fvs.length ? fvs[fvs.length - 1].url : "";
+        var hsets = [
+            { n: "H1 ref=site+range", h: { "User-Agent": UAm, "Referer": BASE + "/", "Range": "bytes=0-1023" } },
+            { n: "H2 ref=video+range", h: { "User-Agent": UAm, "Referer": pageUrl, "Range": "bytes=0-1023" } },
+            { n: "H3 no-ref+range", h: { "User-Agent": UAm, "Range": "bytes=0-1023" } }
+        ];
+        dbgText = "[DEBUG v1.0.11] probe=" + probeUrl;
+        for (var hi = 0; probeUrl && hi < hsets.length; hi++) {
+            try {
+                var pr = httpRequest(probeUrl, { method: "GET", headers: hsets[hi].h });
+                var ph = "";
+                try { ph = JSON.stringify(pr.headers || {}).substring(0, 380); } catch (e7) {}
+                var pb = (pr && pr.body) ? String(pr.body) : "";
+                dbgText += "\n[" + hsets[hi].n + "] status=" + (pr && pr.status) + " ok=" + (pr && pr.isSuccessful) + " url=" + String((pr && pr.url) || "").substring(0, 150) + " bodyLen=" + pb.length + " enc=" + (pr && pr.bodyEncoding) + " headers=" + ph + " body=" + pb.replace(/[^\x20-\x7e]/g, ".").substring(0, 120);
+            } catch (e6) { dbgText += "\n[" + hsets[hi].n + "] lỗi: " + e6; }
+        }
+    } catch (e5) { dbgText = "[DEBUG v1.0.11] lỗi: " + e5; }
+
     return JSON.stringify({
         id: id,
         title: title,
         posterUrl: poster,
         backdropUrl: poster,
-        description: d ? decodeHtml(d[1]) : "",
+        description: (d ? decodeHtml(d[1]) : "") + "\n\n" + dbgText,
         servers: [{
             name: "PornDos",
             episodes: [epObj]
