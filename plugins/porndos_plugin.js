@@ -1,8 +1,11 @@
 // =============================================================================
 // VAAPP Plugin: PornDos  (https://www.porndos.com)
-// Author: TheVinhLy
-// Version: 1.0.0
-// Dựa trên HUONG_DAN.md + plugin_template.js + hqporner_plugin.js
+// Author: TheVinhLy  |  Version: 1.0.4
+// Luồng lấy link:
+//   1. parseMovieDetail → lấy video_id số (vd "9456"), set episode.id = slug|data:9456
+//   2. getUrlDetail(slug, datasend="9456") → trả URL embed: /embed/9456/
+//   3. App fetch embed page (HTML nhỏ ~1KB)
+//   4. parseDetailResponse → parse "file:\"https://cdn/okhls/ID//master.m3u8\""
 // =============================================================================
 
 var BASE = "https://www.porndos.com";
@@ -26,21 +29,18 @@ function decodeHtml(s) {
         .replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
 }
 
-// "/video/slug-name_v123/" -> "slug-name_v123"
+// "/video/slug-name_v123/" → "slug-name_v123"
 function pathToSlug(href) {
     var m = String(href).match(/\/video\/([^"'?#|\s\/]+)/i);
     return m ? m[1] : "";
 }
 
-// lấy số trang hiện tại từ URL
 function pageFromUrl(url) {
     url = String(url || "").split("|")[0];
-    // /videos_70/3/ hoặc /category/xxx_cXX/3/ hoặc /search/kw/3/
-    var m = url.match(/\/(\d+)\/?$/);
+    var m = url.match(/\/(\d+)\/?$/) || url.match(/[?&]page=(\d+)/i);
     return m ? parseInt(m[1], 10) : 1;
 }
 
-// Ghép URL phân trang: thêm /PAGE/ vào cuối base path
 function buildPagedUrl(base, page) {
     base = String(base).replace(/\/\d+\/?$/, "").replace(/\/$/, "");
     return page > 1 ? base + "/" + page + "/" : base + "/";
@@ -53,11 +53,11 @@ function getManifest() {
     return JSON.stringify({
         "id": "porndos",
         "name": "PornDos",
-        "version": "1.0.0",
+        "version": "1.0.4",
         "description": "Free HD Porn Videos từ porndos.com",
         "author": "TheVinhLy",
         "baseUrl": "https://www.porndos.com",
-        "iconUrl": "https://www.porndos.com/favicon.ico",
+        "iconUrl": "https://raw.githubusercontent.com/TheVinhLy/repo/main/plugins/porndos.ico",
         "referrer": "https://www.porndos.com/",
         "isEnabled": true,
         "isAdult": true,
@@ -71,22 +71,22 @@ function getManifest() {
 
 function getHomeSections() {
     return JSON.stringify([
-        { slug: "home",           title: "Mới Nhất",    type: "Horizontal", path: "" },
+        { slug: "home",           title: "Mới Nhất",     type: "Horizontal", path: "" },
         { slug: "videos_70",      title: "Tất Cả Video", type: "Horizontal", path: "" },
-        { slug: "most-viewed_83", title: "Xem Nhiều",   type: "Horizontal", path: "" },
+        { slug: "most-viewed_83", title: "Xem Nhiều",    type: "Horizontal", path: "" },
         { slug: "top-rated_52",   title: "Đánh Giá Cao", type: "Horizontal", path: "" }
     ]);
 }
 
 function getPrimaryCategories() {
     return JSON.stringify([
-        { name: "Mới Nhất",        slug: "home" },
-        { name: "Tất Cả Video",    slug: "videos_70" },
-        { name: "Xem Nhiều",       slug: "most-viewed_83" },
-        { name: "Đánh Giá Cao",    slug: "top-rated_52" },
-        { name: "Thể Loại",        slug: "categories_84" },
-        { name: "Diễn Viên",       slug: "pornstars_42" },
-        { name: "Studios",         slug: "studios_91" }
+        { name: "Mới Nhất",       slug: "home" },
+        { name: "Tất Cả Video",   slug: "videos_70" },
+        { name: "Xem Nhiều",      slug: "most-viewed_83" },
+        { name: "Đánh Giá Cao",   slug: "top-rated_52" },
+        { name: "Thể Loại",       slug: "categories_84" },
+        { name: "Diễn Viên",      slug: "pornstars_42" },
+        { name: "Studios",        slug: "studios_91" }
     ]);
 }
 
@@ -102,14 +102,9 @@ function getUrlList(slug, filtersJson) {
     var page = filters.page || 1;
     slug = String(slug || "home").split("|")[0].replace(/^\/+|\/+$/g, "");
 
-    // Trang chủ
     if (slug === "home" || slug === "") {
         return page > 1 ? BASE + "/" + page + "/" : BASE + "/";
     }
-
-    // Các slug cố định có số ID nhúng: videos_70, most-viewed_83, top-rated_52,
-    // categories_84, pornstars_42, studios_91
-    // => giữ nguyên slug, thêm /page/
     return buildPagedUrl(BASE + "/" + slug, page);
 }
 
@@ -119,10 +114,26 @@ function getUrlSearch(keyword, filtersJson) {
     return buildPagedUrl(BASE + "/search/" + kw, page);
 }
 
-// slug = "slug-name_v123"
+/**
+ * Nhận slug = "slug-name_v123" hoặc URL đầy đủ.
+ * datasend = video_id số (vd "9456") do parseMovieDetail gắn vào.
+ *
+ * → Nếu có datasend (video_id số): trả URL embed page /embed/{id}/
+ *   App fetch embed page → parseDetailResponse lấy m3u8 thật
+ * → Fallback: trả URL trang chi tiết video để parseDetailResponse xử lý
+ */
 function getUrlDetail(slug, datasend) {
     if (!slug) return "";
     slug = String(slug).split("|")[0];
+
+    // datasend là video_id số -> trả embed URL
+    if (datasend && /^\d+$/.test(String(datasend).trim())) {
+        var vid = String(datasend).trim();
+        console.log("getUrlDetail: embed URL /embed/" + vid + "/");
+        return BASE + "/embed/" + vid + "/";
+    }
+
+    // Fallback
     if (slug.indexOf("http") === 0) return slug;
     slug = slug.replace(/^\/+/, "").replace(/^video\//, "");
     return BASE + "/video/" + slug + "/";
@@ -136,9 +147,6 @@ function getUrlYears()      { return ""; }
 // NHÓM 3: PARSER
 // =============================================================================
 
-/**
- * Parse danh sách video, thể loại, diễn viên, studios
- */
 function parseListResponse(html, apiUrl) {
     var empty = JSON.stringify({ items: [], pagination: { currentPage: 1, totalPages: 1 } });
     try {
@@ -148,89 +156,62 @@ function parseListResponse(html, apiUrl) {
         var seen = {};
         var m;
 
-        // ---- Trang Categories: /categories_84/ ----
-        if (/\/categories_?/i.test(url) && !/\/category\//i.test(url)) {
-            var catRe = /<a\s+href="(https?:\/\/www\.porndos\.com\/category\/[^"]+)"[^>]*>[\s\S]*?<img[^>]+(?:data-src|src)="([^"]+)"[^>]+alt="([^"]+)"/gi;
+        // ---- Trang Categories ----
+        if (/\/categories_?84/i.test(url) && !/\/category\//i.test(url)) {
+            var catRe = /<a\s+href="(https?:\/\/www\.porndos\.com\/category\/[^"]+)"[^>]*>\s*<img[^>]+(?:data-src|src)="([^"]+)"[^>]+alt="([^"]+)"/gi;
             while ((m = catRe.exec(html)) !== null) {
-                var cUrl = m[1];
-                var cSlug = cUrl.replace(BASE, "").replace(/^\/|\/$/g, "");
+                var cSlug = m[1].replace(BASE, "").replace(/^\/|\/$/g, "");
                 if (!cSlug || seen[cSlug]) continue;
                 seen[cSlug] = true;
-                items.push({
-                    id: cSlug,
-                    title: decodeHtml(m[3]),
-                    posterUrl: absUrl(m[2]),
-                    quality: "CAT"
-                });
+                items.push({ id: cSlug, title: decodeHtml(m[3]), posterUrl: absUrl(m[2]), quality: "CAT" });
             }
             return JSON.stringify({ items: items, pagination: { currentPage: 1, totalPages: 1 } });
         }
 
-        // ---- Trang Pornstars: /pornstars_42/ ----
+        // ---- Trang Pornstars ----
         if (/\/pornstars/i.test(url)) {
-            var psRe = /<a\s+href="(https?:\/\/www\.porndos\.com\/pornstar\/[^"]+)"[^>]*>[\s\S]*?<img[^>]+(?:data-src|src)="([^"]+)"[^>]+alt="([^"]+)"/gi;
+            var psRe = /<a\s+href="(https?:\/\/www\.porndos\.com\/pornstar\/[^"]+)"[^>]*>\s*<img[^>]+(?:data-src|src)="([^"]+)"[^>]+alt="([^"]+)"/gi;
             while ((m = psRe.exec(html)) !== null) {
-                var psUrl = m[1];
-                var psSlug = psUrl.replace(BASE, "").replace(/^\/|\/$/g, "");
+                var psSlug = m[1].replace(BASE, "").replace(/^\/|\/$/g, "");
                 if (!psSlug || seen[psSlug]) continue;
                 seen[psSlug] = true;
-                items.push({
-                    id: psSlug,
-                    title: decodeHtml(m[3]),
-                    posterUrl: absUrl(m[2]),
-                    quality: "ACTRESS"
-                });
+                items.push({ id: psSlug, title: decodeHtml(m[3]), posterUrl: absUrl(m[2]), quality: "ACTRESS" });
             }
-            var curPage = pageFromUrl(url);
-            return JSON.stringify({ items: items, pagination: { currentPage: curPage, totalPages: 999 } });
+            return JSON.stringify({ items: items, pagination: { currentPage: pageFromUrl(url), totalPages: 999 } });
         }
 
-        // ---- Trang Studios: /studios_91/ ----
+        // ---- Trang Studios ----
         if (/\/studios/i.test(url)) {
-            var stRe = /<a\s+href="(https?:\/\/www\.porndos\.com\/studio\/[^"]+)"[^>]*>[\s\S]*?<img[^>]+(?:data-src|src)="([^"]+)"[^>]+alt="([^"]+)"/gi;
+            var stRe = /<a\s+href="(https?:\/\/www\.porndos\.com\/studio\/[^"]+)"[^>]*>\s*<img[^>]+(?:data-src|src)="([^"]+)"[^>]+alt="([^"]+)"/gi;
             while ((m = stRe.exec(html)) !== null) {
-                var stUrl = m[1];
-                var stSlug = stUrl.replace(BASE, "").replace(/^\/|\/$/g, "");
+                var stSlug = m[1].replace(BASE, "").replace(/^\/|\/$/g, "");
                 if (!stSlug || seen[stSlug]) continue;
                 seen[stSlug] = true;
-                items.push({
-                    id: stSlug,
-                    title: decodeHtml(m[3]),
-                    posterUrl: absUrl(m[2]),
-                    quality: "CAT"
-                });
+                items.push({ id: stSlug, title: decodeHtml(m[3]), posterUrl: absUrl(m[2]), quality: "CAT" });
             }
             return JSON.stringify({ items: items, pagination: { currentPage: 1, totalPages: 1 } });
         }
 
-        // ---- Danh sách video thông thường ----
-        // Cấu trúc: <div class="item" ...> <a href="/video/SLUG/"> <img data-src="..." alt="TITLE">
-        // Tách block theo thẻ <div class="item"
+        // ---- Danh sách video ----
+        // Cấu trúc: <div class="item" ...><a href="/video/SLUG/"><img data-src="..." alt="TITLE">
         var blocks = html.split(/<div\s+class="item"/i);
-        blocks.shift(); // bỏ phần trước item đầu tiên
+        blocks.shift();
 
         for (var i = 0; i < blocks.length; i++) {
             var b = blocks[i];
 
-            // Link video
             var hm = b.match(/href="(https?:\/\/www\.porndos\.com\/video\/[^"]+)"/i);
             if (!hm) continue;
             var slug = pathToSlug(hm[1]);
             if (!slug || seen[slug]) continue;
 
-            // Poster (data-src ưu tiên hơn src)
             var im = b.match(/(?:data-src|src)="(\/images\/thumb\/[^"]+)"/i);
-
-            // Title từ alt của img
             var tm = b.match(/alt="([^"]+)"/i);
 
-            // Thời lượng
-            var dm = b.match(/<span[^>]*class="right"[^>]*>[\s\S]*?<\/span>/i);
+            // Duration: <span class="right"><i ...></i> MM:SS</span>
             var dur = "";
-            if (dm) {
-                var durMatch = dm[0].match(/(\d{1,2}:\d{2}(?::\d{2})?)/);
-                if (durMatch) dur = durMatch[1];
-            }
+            var durM = b.match(/<span[^>]*class="right"[^>]*>[\s\S]*?(\d{1,2}:\d{2}(?::\d{2})?)/i);
+            if (durM) dur = durM[1];
 
             seen[slug] = true;
             items.push({
@@ -242,7 +223,7 @@ function parseListResponse(html, apiUrl) {
             });
         }
 
-        // Phân trang: tìm số trang lớn nhất trong .pages
+        // Phân trang
         var current = pageFromUrl(url);
         var total = current;
         var pageRe = /href="[^"]*\/(\d+)\/"[^>]*title="Page \d+"/gi;
@@ -252,10 +233,7 @@ function parseListResponse(html, apiUrl) {
             if (n < 10000 && n > total) total = n;
         }
 
-        return JSON.stringify({
-            items: items,
-            pagination: { currentPage: current, totalPages: total }
-        });
+        return JSON.stringify({ items: items, pagination: { currentPage: current, totalPages: total } });
     } catch (e) {
         console.log("parseListResponse lỗi: " + e);
         return empty;
@@ -267,18 +245,23 @@ function parseSearchResponse(html, apiUrl) {
 }
 
 /**
- * Parse chi tiết video: title, poster, cast, categories, description, servers
- * Trang có nhiều chất lượng: 360p, 480p, 720p, 1080p
+ * Parse trang chi tiết video.
+ * KEY: lấy video_id số từ flashvars (vd video_id: '9456')
+ * Gán vào episode.datasend để getUrlDetail biết gọi /embed/{id}/
  */
 function parseMovieDetail(html, apiUrl, datasend) {
     html = String(html || "");
 
-    // ID từ URL hoặc canonical
     var id = pathToSlug(apiUrl || "");
     if (!id) {
         var c = html.match(/<link[^>]+rel="canonical"[^>]+href="([^"]+)"/i);
         if (c) id = pathToSlug(c[1]);
     }
+
+    // video_id số (dùng để build embed URL)
+    var vidIdMatch = html.match(/video_id:\s*'(\d+)'/i);
+    var vidId = vidIdMatch ? vidIdMatch[1] : "";
+    console.log("parseMovieDetail: id=" + id + " vidId=" + vidId);
 
     // Title
     var t = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i)
@@ -291,101 +274,63 @@ function parseMovieDetail(html, apiUrl, datasend) {
         || html.match(/preview_url:\s*'([^']+)'/i);
     var poster = p ? absUrl(p[1]) : "";
 
-    // Description (meta)
+    // Description
     var d = html.match(/<meta[^>]+itemprop="description"[^>]+content="([^"]*)"/i)
-        || html.match(/<meta[^>]+(?:name="description"|property="og:description")[^>]+content="([^"]*)"/i);
+        || html.match(/<meta[^>]+name="description"[^>]+content="([^"]*)"/i);
 
     // Duration
     var dur = html.match(/(\d{1,2}:\d{2}(?::\d{2})?)/);
 
-    // Categories từ links .links a
+    // Categories
     var cats = [];
     var seenC = {};
-    var catRe = /href="(https?:\/\/www\.porndos\.com\/category\/([^"\/]+)\/?)">[\s\S]*?<\/a>/gi;
+    var catRe = /href="(https?:\/\/www\.porndos\.com\/category\/([^"\/]+)\/?)"[^>]*>[\s\S]*?<\/a>/gi;
     var cm;
     while ((cm = catRe.exec(html)) !== null) {
         var catSlug = cm[1].replace(BASE, "").replace(/^\/|\/$/g, "");
-        // Lấy tên từ alt hoặc text
-        var catName = cm[0].match(/<i[^>]*>[\s\S]*?<\/i>([\s\S]*?)<\/a>/i);
-        var nameStr = catName ? decodeHtml(catName[1]) : catSlug;
-        if (nameStr && !seenC[catSlug]) {
+        // Lấy text (bỏ tag)
+        var nameRaw = cm[0].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+        var nameStr = nameRaw.split(/\s+/).filter(function(w){ return w.length > 1; }).join(" ").trim();
+        if (nameStr && !seenC[catSlug] && catSlug) {
             seenC[catSlug] = true;
             cats.push("[" + nameStr + "](" + catSlug + ")");
         }
     }
-    // Từ flashvars video_categories nếu có
-    var vcMatch = html.match(/video_categories:\s*'([^']+)'/i);
-    if (vcMatch && cats.length === 0) {
-        vcMatch[1].split(",").forEach(function(c) {
-            c = c.trim();
-            if (c) cats.push(c);
-        });
+    // Fallback: video_categories trong flashvars
+    if (cats.length === 0) {
+        var vcMatch = html.match(/video_categories:\s*'([^']+)'/i);
+        if (vcMatch) {
+            vcMatch[1].split(",").forEach(function(c) {
+                c = c.trim(); if (c) cats.push(c);
+            });
+        }
     }
 
-    // Pornstars/Casts
+    // Pornstars
     var casts = [];
     var seenA = {};
-    var castRe = /href="(https?:\/\/www\.porndos\.com\/pornstar\/([^"\/]+)\/?)">[\s\S]*?<\/a>/gi;
+    var castRe = /href="(https?:\/\/www\.porndos\.com\/pornstar\/([^"\/]+)\/?)"[^>]*>[\s\S]*?<\/a>/gi;
     var am;
     while ((am = castRe.exec(html)) !== null) {
         var psSlug = am[1].replace(BASE, "").replace(/^\/|\/$/g, "");
-        var psName = am[0].match(/<i[^>]*>[\s\S]*?<\/i>([\s\S]*?)<\/a>/i);
-        var pName = psName ? decodeHtml(psName[1]) : psSlug;
-        if (pName && !seenA[psSlug]) {
+        var pNameRaw = am[0].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+        var pName = pNameRaw.split(/\s+/).filter(function(w){ return w.length > 1; }).join(" ").trim();
+        if (pName && !seenA[psSlug] && psSlug) {
             seenA[psSlug] = true;
             casts.push("[" + pName + "](" + psSlug + ")");
         }
     }
 
-    // Lấy video ID số từ flashvars để build URLs
-    var vidIdMatch = html.match(/video_id:\s*'(\d+)'/i);
-    var vidId = vidIdMatch ? vidIdMatch[1] : "";
-
-    // Xây dựng danh sách chất lượng từ flashvars
-    // video_url (360p), video_alt_url (480p), video_alt_url2 (720p), video_alt_url3 (1080p)
-    var episodes = [];
-
-    // Dùng regex lấy trực tiếp từ flashvars
-    var urlMatches = [
-        { key: "video_url",       textKey: "video_url_text"       },
-        { key: "video_alt_url",   textKey: "video_alt_url_text"   },
-        { key: "video_alt_url2",  textKey: "video_alt_url2_text"  },
-        { key: "video_alt_url3",  textKey: "video_alt_url3_text"  }
-    ];
-
-    var seenUrl = {};
-    for (var qi = 0; qi < urlMatches.length; qi++) {
-        var uk = urlMatches[qi];
-        // Khớp: video_url: 'https://...'
-        var urlRe = new RegExp(uk.key + ":\\s*'(https?://[^']+)'", "i");
-        var textRe = new RegExp(uk.textKey + ":\\s*'([^']+)'", "i");
-        var uMatch = html.match(urlRe);
-        var tMatch = html.match(textRe);
-        if (!uMatch) continue;
-        var epUrl = uMatch[1];
-        var epLabel = tMatch ? tMatch[1] : (qi === 0 ? "360p" : qi === 1 ? "480p" : qi === 2 ? "720p" : "1080p");
-        if (seenUrl[epUrl]) continue;
-        seenUrl[epUrl] = true;
-        // Slug duy nhất theo quality label
-        var epSlug = epLabel.replace(/[^a-z0-9]/gi, "").toLowerCase();
-        episodes.push({
-            id: epUrl,
-            name: epLabel,
-            slug: epSlug || ("q" + qi)
-        });
-    }
-
-    // Nếu không tìm được episodes từ flashvars, dùng get_stream pattern
-    if (episodes.length === 0 && vidId) {
-        var qualities = ["360", "480", "720", "1080"];
-        for (var qi2 = 0; qi2 < qualities.length; qi2++) {
-            var q = qualities[qi2];
-            episodes.push({
-                id: BASE + "/get_stream/" + vidId + "-" + q + ".mp4",
-                name: q + "p",
-                slug: q + "p"
-            });
-        }
+    // Nếu có vidId → episode dùng datasend để truyền qua getUrlDetail → /embed/{id}/
+    // Nếu không có vidId → fallback: episode.id = trang chi tiết, parseDetailResponse tự xử lý
+    var episodeId, episodeDatasend;
+    if (vidId) {
+        episodeId = id;          // slug trang video (để getUrlDetail nhận slug, datasend=vidId)
+        episodeDatasend = vidId; // video_id số
+    } else {
+        // Không có vidId → dùng URL trang chi tiết, parseDetailResponse sẽ parse lại
+        episodeId = BASE + "/video/" + id + "/";
+        episodeDatasend = "";
     }
 
     return JSON.stringify({
@@ -394,14 +339,15 @@ function parseMovieDetail(html, apiUrl, datasend) {
         posterUrl: poster,
         backdropUrl: poster,
         description: d ? decodeHtml(d[1]) : "",
-        servers: [
-            {
-                name: "PornDos",
-                episodes: episodes.length > 0 ? episodes : [
-                    { id: id, name: "Full", slug: id || "full" }
-                ]
-            }
-        ],
+        servers: [{
+            name: "PornDos",
+            episodes: [{
+                id: episodeId,
+                name: "Full",
+                slug: id || "full",
+                datasend: episodeDatasend
+            }]
+        }],
         quality: "HD",
         status: "Full",
         duration: dur ? dur[1] : "",
@@ -411,23 +357,47 @@ function parseMovieDetail(html, apiUrl, datasend) {
 }
 
 /**
- * Parse link video.
- * episode.id đã là URL .mp4 trực tiếp (https://www.porndos.com/get_stream/XXXX-720.mp4)
- * => App sẽ phát thẳng mà không cần gọi hàm này.
- * Nhưng vẫn implement để xử lý fallback hoặc nếu App gọi.
+ * Parse embed page (HTML ~1KB) để lấy m3u8 thật từ thorcdn.com
+ *
+ * Embed page chứa:
+ *   var player = new Playerjs({id:"kt_player", file:"https://bg-X.thorcdn.com/okhls/ID//master.m3u8", ...});
  */
 function parseDetailResponse(html, apiUrl, datasend) {
     html = String(html || "");
+    console.log("parseDetailResponse: url=" + apiUrl + " len=" + html.length);
+    console.log("parseDetailResponse head=" + html.substring(0, 500));
+
     var referer = BASE + "/";
 
-    // Thử trích stream trực tiếp từ flashvars
-    var streams = extractStreams(html);
-    if (streams.length > 0) {
-        var best = streams[0];
+    // Trường hợp 1: embed page với Playerjs → lấy file m3u8
+    var m3u8Match = html.match(/file:\s*["']([^"']+\.m3u8[^"']*)['"]/i)
+        || html.match(/"file"\s*:\s*"([^"]+\.m3u8[^"]*)"/i)
+        || html.match(/file\s*=\s*["']([^"']+\.m3u8[^"']*)['"]/i);
+
+    if (m3u8Match) {
+        var m3u8Url = m3u8Match[1];
+        console.log("parseDetailResponse: found m3u8=" + m3u8Url);
         return JSON.stringify({
-            url: best.url,
+            url: m3u8Url,
             isEmbed: false,
-            mimeType: "video/mp4",
+            mimeType: "application/x-mpegURL",
+            headers: {
+                "Referer": "https://www.porndos.com/",
+                "Origin": "https://www.porndos.com",
+                "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
+            },
+            subtitles: []
+        });
+    }
+
+    // Trường hợp 2: trang video gốc (fallback khi không có datasend) → tìm /embed/ID/
+    var embedMatch = html.match(/["']((?:https?:\/\/www\.porndos\.com)?\/embed\/(\d+)\/?)["']/i);
+    if (embedMatch) {
+        var embedUrl = embedMatch[1].indexOf("http") === 0 ? embedMatch[1] : BASE + embedMatch[1];
+        console.log("parseDetailResponse: found embed URL=" + embedUrl);
+        return JSON.stringify({
+            url: embedUrl,
+            isEmbed: true,
             headers: {
                 "Referer": referer,
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
@@ -436,69 +406,55 @@ function parseDetailResponse(html, apiUrl, datasend) {
         });
     }
 
-    // Nếu apiUrl là link .mp4 trực tiếp
-    var cleanUrl = String(apiUrl || "").split("|")[0];
-    if (cleanUrl.match(/\.mp4(\?.*)?$/i)) {
+    // Trường hợp 3: video_id trong flashvars → build embed URL
+    var vidIdFallback = html.match(/video_id:\s*'(\d+)'/i);
+    if (vidIdFallback) {
+        var fallbackEmbed = BASE + "/embed/" + vidIdFallback[1] + "/";
+        console.log("parseDetailResponse: fallback embed=" + fallbackEmbed);
         return JSON.stringify({
-            url: cleanUrl,
-            isEmbed: false,
-            mimeType: "video/mp4",
-            headers: { "Referer": referer },
+            url: fallbackEmbed,
+            isEmbed: true,
+            headers: {
+                "Referer": referer,
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            },
             subtitles: []
         });
     }
 
-    console.log("parseDetailResponse: không tìm thấy stream, url=" + apiUrl);
+    console.log("parseDetailResponse: không tìm thấy stream nào");
     return JSON.stringify({ url: "", isEmbed: false, headers: { "Referer": referer }, subtitles: [] });
 }
 
+/**
+ * Bước thứ 2 nếu parseDetailResponse trả isEmbed:true (embed page)
+ * Embed page chứa Playerjs với m3u8 từ thorcdn.com
+ */
 function parseEmbedResponse(html, sourceUrl) {
     html = String(html || "");
-    var streams = extractStreams(html);
-    if (streams.length > 0) {
-        var best = streams[0];
+    console.log("parseEmbedResponse: url=" + sourceUrl + " len=" + html.length);
+
+    // Lấy m3u8 từ Playerjs
+    var m3u8Match = html.match(/file:\s*["']([^"']+\.m3u8[^"']*)['"]/i)
+        || html.match(/"file"\s*:\s*"([^"]+\.m3u8[^"]*)"/i);
+
+    if (m3u8Match) {
+        var m3u8Url = m3u8Match[1];
+        console.log("parseEmbedResponse: m3u8=" + m3u8Url);
         return JSON.stringify({
-            url: best.url,
+            url: m3u8Url,
             isEmbed: false,
-            mimeType: "video/mp4",
-            headers: { "Referer": BASE + "/" }
+            mimeType: "application/x-mpegURL",
+            headers: {
+                "Referer": "https://www.porndos.com/",
+                "Origin": "https://www.porndos.com",
+                "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
+            }
         });
     }
+
+    console.log("parseEmbedResponse: không thấy m3u8");
     return JSON.stringify({ url: "", isEmbed: false });
-}
-
-// Lấy tất cả URL mp4/m3u8, sắp xếp chất lượng cao → thấp
-function extractStreams(html) {
-    var out = [];
-    var seen = {};
-
-    function push(u, label) {
-        u = absUrl(u);
-        if (!u || seen[u]) return;
-        // Chỉ nhận URL từ porndos.com/get_stream hoặc cdn
-        if (u.indexOf("get_stream") === -1 && !u.match(/\.mp4|\.m3u8/i)) return;
-        seen[u] = true;
-        // Chất lượng lấy từ filename: /9456-1080.mp4
-        var qm = u.match(/[_-](\d{3,4})\.(?:mp4|m3u8)/i)
-            || String(label || "").match(/^(\d{3,4})p?$/);
-        out.push({ url: u, q: qm ? parseInt(qm[1], 10) : 0 });
-    }
-
-    // Từ flashvars video_url, video_alt_url, ...
-    var fvRe = /video(?:_alt)?_url\d*:\s*'(https?:\/\/[^']+\.mp4[^']*)'/gi;
-    var m;
-    while ((m = fvRe.exec(html)) !== null) push(m[1], m[1]);
-
-    // Từ <source src="...">
-    var srcRe = /<source[^>]+src=['"]([^'"]+)['"]/gi;
-    while ((m = srcRe.exec(html)) !== null) push(m[1], m[1]);
-
-    // Fallback: bắt mọi URL get_stream
-    var gsRe = /(https?:\/\/[^"'\s<>]+\/get_stream\/[^"'\s<>]+\.mp4(?:\?[^"'\s<>]*)?)/gi;
-    while ((m = gsRe.exec(html)) !== null) push(m[1], m[1]);
-
-    out.sort(function(a, b) { return b.q - a.q; });
-    return out;
 }
 
 // =============================================================================
@@ -508,7 +464,7 @@ function parseCategoriesResponse(html, apiUrl) {
     try {
         var res = [];
         var seen = {};
-        var re = /<a\s+href="(https?:\/\/www\.porndos\.com\/category\/([^"\/]+)\/?)"\s*>[\s\S]*?<img[^>]+alt="([^"]+)"/gi;
+        var re = /<a\s+href="(https?:\/\/www\.porndos\.com\/category\/([^"\/]+)\/?)"\s*>\s*<img[^>]+alt="([^"]+)"/gi;
         var m;
         while ((m = re.exec(html)) !== null) {
             var slug = m[1].replace(BASE, "").replace(/^\/|\/$/g, "");

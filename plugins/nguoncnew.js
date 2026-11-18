@@ -9,7 +9,7 @@ function getManifest() {
         "version": "1.34",
         "baseUrl": "https://phim.nguonc.com",
         "iconUrl": "https://raw.githubusercontent.com/TheVinhLy/repo/main/plugins/nguonC.png",
-        "isEnabled": true,
+        "isEnabled": false,
         "type": "MOVIE",
         "playerType": "embed"
     });
