@@ -1,5 +1,5 @@
 // =============================================================================
-// CôBe Phim (https://cobephim.ink) - Plugin v1.0.0
+// CôBe Phim (https://cobephim.club) - Plugin v1.0.0
 // Web Next.js (render sẵn HTML). Link m3u8 nằm trong trang xem phim (/phim/<slug>/tap-<id>)
 // =============================================================================
 
@@ -11,7 +11,7 @@ function getManifest() {
         "id": "cobephim",
         "name": "CôBe Phim",
         "version": "1.0.5",
-        "description": "Xem phim lẻ, phim bộ tại cobephim.ink",
+        "description": "Xem phim lẻ, phim bộ tại cobephim.club",
         "author": "TheVinhLy",
         "baseUrl": "https://cobephim.club",
         "iconUrl": "https://raw.githubusercontent.com/TheVinhLy/repo/main/plugins/cobephim.ico",
@@ -206,7 +206,7 @@ function parseSearchResponse(html, apiUrl) {
 // =============================================================================
 
 function collectLinks(html, kind, limit) {
-    var re = new RegExp('<a[^>]*href="(?:https://cobephim\\.ink)?/' + kind + '/[^"]*"[^>]*>(.*?)</a>', "g");
+    var re = new RegExp('<a[^>]*href="(?:https://cobephim\\.club)?/' + kind + '/[^"]*"[^>]*>(.*?)</a>', "g");
     var out = [], seen = {}, m;
     while ((m = re.exec(html)) !== null) {
         var n = stripTags(m[1]).replace(/^[,\s]+|[,\s]+$/g, "");
@@ -220,7 +220,7 @@ function collectLinks(html, kind, limit) {
 function parseEpisodeItems(html, slug) {
     var eps = [];
     var seen = {};
-    var re = /<a[^>]*href="((?:https:\/\/cobephim\.ink)?\/phim\/[^"\/]+\/tap-[^"#?]+)"[^>]*>([\s\S]*?)<\/a>/g;
+    var re = /<a[^>]*href="((?:https:\/\/cobephim\.club)?\/phim\/[^"\/]+\/tap-[^"#?]+)"[^>]*>([\s\S]*?)<\/a>/g;
     var m;
     while ((m = re.exec(html)) !== null) {
         var href = m[1];
@@ -517,7 +517,7 @@ function parseEmbedResponse(html, sourceUrl) {
 // =============================================================================
 
 function parseMenuLinks(html, kind) {
-    var re = new RegExp('<a[^>]*href="(?:https://cobephim\\.ink)?/' + kind + '/([^"/?#]+)"[^>]*>([\\s\\S]*?)</a>', "g");
+    var re = new RegExp('<a[^>]*href="(?:https://cobephim\\.club)?/' + kind + '/([^"/?#]+)"[^>]*>([\\s\\S]*?)</a>', "g");
     var out = [], seen = {}, m;
     while ((m = re.exec(html || "")) !== null) {
         var n = stripTags(m[2]);
