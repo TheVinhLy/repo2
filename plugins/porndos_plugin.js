@@ -1,6 +1,6 @@
 // =============================================================================
 // VAAPP Plugin: PornDos  (https://www.porndos.com)
-// Author: TheVinhLy  |  Version: 1.0.15
+// Author: TheVinhLy  |  Version: 1.0.16
 // Luồng lấy link:
 //   1. parseMovieDetail → lấy video_id số (vd "9456"), set episode.id = slug|data:9456
 //   2. getUrlDetail(slug, datasend="9456") → trả URL embed: /embed/9456/
@@ -106,7 +106,7 @@ function getManifest() {
     return JSON.stringify({
         "id": "porndos",
         "name": "PornDos",
-        "version": "1.0.15",
+        "version": "1.0.16",
         "description": "Free HD Porn Videos từ porndos.com",
         "author": "TheVinhLy",
         "baseUrl": "https://www.porndos.com",
@@ -455,13 +455,33 @@ function parseDetailResponse(html, apiUrl, datasend) {
     // (trang /embed/ khi mở riêng sẽ bị chuyển sang thorcdn.com; get_stream/*.mp4 trả "error" ngoài trình duyệt)
     var vp = String(apiUrl || "").split("|")[0];
     var vidM = html.match(/video_id:\s*'(\d+)'/i);
-    if (/\/video\/[^\/]+/i.test(vp) && vidM) {
-        // Trang embed chỉ chạy khi nằm trong iframe -> bọc trong trang HTML gọn
-        var wrap = '<html style="height:100%"><body style="margin:0;padding:0;height:100%;background:#000;overflow:hidden;">' +
-            '<iframe src="' + BASE + '/embed/' + vidM[1] + '/" style="position:absolute;top:0;left:0;width:100%;height:100%;border:none;background:#000;" allow="autoplay; fullscreen" allowfullscreen></iframe></body></html>';
-        console.log("parseDetailResponse: iframe embed " + vidM[1]);
+    var fvList = parseFlashvars(html);
+    if (/\/video\/[^\/]+/i.test(vp) && (fvList.length > 0 || vidM)) {
+        // Trang HTML gọn: thẻ <video> phát mp4 (có nút chọn chất lượng) + nút dự phòng mở trình phát embed.
+        // Lỗi phát (nếu có) được in ngay trên màn hình. Chỉ dùng ASCII để base64 không hỏng.
+        var Q = [];
+        for (var wi = 0; wi < fvList.length; wi++) Q.push({ l: fvList[wi].label, u: fvList[wi].url });
+        var defIdx = 0;
+        for (var di = 0; di < Q.length; di++) { if (/720/.test(Q[di].l)) { defIdx = di; break; } }
+        var embedSrc = vidM ? (BASE + "/embed/" + vidM[1] + "/") : "";
+        var page = '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
+            '<style>html,body{margin:0;height:100%;background:#000;color:#fff;font:14px sans-serif}#v{width:100%;height:calc(100% - 46px);background:#000}' +
+            '#bar{height:46px;display:flex;gap:6px;align-items:center;padding:0 6px;overflow-x:auto}button{background:#333;color:#fff;border:0;padding:9px 13px;border-radius:6px;white-space:nowrap}' +
+            'button.on{background:#e50914}#log{position:absolute;left:6px;top:6px;right:6px;font-size:12px;color:#ff8;text-shadow:0 0 3px #000;pointer-events:none}</style></head>' +
+            '<body><video id="v" controls autoplay playsinline></video><div id="bar"></div><div id="log"></div><script>' +
+            'var Q=' + JSON.stringify(Q) + ',E=' + JSON.stringify(embedSrc) + ',cur=0,v=document.getElementById("v"),bar=document.getElementById("bar"),lg=document.getElementById("log");' +
+            'function L(t){lg.textContent=t}' +
+            'function mark(){var b=bar.children;for(var i=0;i<b.length;i++){b[i].className=(i===cur)?"on":""}}' +
+            'function play(i){cur=i;mark();L("Dang tai "+Q[i].l+"...");v.src=Q[i].u;var p=v.play();if(p&&p.catch){p.catch(function(){})}}' +
+            'v.onerror=function(){var e=v.error;L("Loi phat "+Q[cur].l+": code="+(e?e.code:"?")+" "+((e&&e.message)||"")+" | thu muc chat luong khac hoac nut Embed")};' +
+            'v.onloadedmetadata=function(){L("")};v.onplaying=function(){L("")};' +
+            'for(var i=0;i<Q.length;i++){(function(i){var b=document.createElement("button");b.textContent=Q[i].l;b.onclick=function(){play(i)};bar.appendChild(b)})(i)}' +
+            'if(E){var eb=document.createElement("button");eb.textContent="Embed";eb.onclick=function(){document.body.innerHTML=\'<iframe src="\'+E+\'" style="position:absolute;top:0;left:0;width:100%;height:100%;border:0;background:#000" allow="autoplay; fullscreen" allowfullscreen></iframe>\'};bar.appendChild(eb)}' +
+            'if(Q.length){play(' + defIdx + ')}else if(E){document.body.innerHTML=\'<iframe src="\'+E+\'" style="position:absolute;top:0;left:0;width:100%;height:100%;border:0;background:#000" allowfullscreen></iframe>\'}' +
+            '</scr' + 'ipt></body></html>';
+        console.log("parseDetailResponse: wrapper video, qualities=" + Q.length);
         return JSON.stringify({
-            url: "data:text/html;base64," + b64encode(wrap),
+            url: "data:text/html;base64," + b64encode(page),
             isEmbed: true,
             headers: { "Referer": BASE + "/" },
             subtitles: []
