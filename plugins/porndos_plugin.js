@@ -1,6 +1,6 @@
 // =============================================================================
 // VAAPP Plugin: PornDos  (https://www.porndos.com)
-// Author: TheVinhLy  |  Version: 1.0.17
+// Author: TheVinhLy  |  Version: 1.0.18
 // Luồng lấy link:
 //   1. parseMovieDetail → lấy video_id số (vd "9456"), set episode.id = slug|data:9456
 //   2. getUrlDetail(slug, datasend="9456") → trả URL embed: /embed/9456/
@@ -106,7 +106,7 @@ function getManifest() {
     return JSON.stringify({
         "id": "porndos",
         "name": "PornDos",
-        "version": "1.0.17",
+        "version": "1.0.18",
         "description": "Free HD Porn Videos từ porndos.com",
         "author": "TheVinhLy",
         "baseUrl": "https://www.porndos.com",
@@ -477,7 +477,7 @@ function parseDetailResponse(html, apiUrl, datasend) {
             'v.onerror=function(){var e=v.error;L("Loi phat "+Q[cur].l+": code="+(e?e.code:"?")+" "+((e&&e.message)||"")+" | thu muc chat luong khac hoac nut Embed")};' +
             'v.onloadedmetadata=function(){L("")};v.onplaying=function(){L("")};' +
             'for(var i=0;i<Q.length;i++){(function(i){var b=document.createElement("button");b.textContent=Q[i].l;b.onclick=function(){play(i)};bar.appendChild(b)})(i)}' +
-            'var wb=document.createElement("button");wb.textContent="Trang web";wb.onclick=function(){location.href=P};bar.appendChild(wb);' +
+            'var wb=document.createElement("button");wb.textContent="Trang web";wb.onclick=function(){document.body.innerHTML=\'<iframe src="\'+P+\'" style="position:absolute;top:0;left:0;width:100%;height:100%;border:0;background:#000" allow="autoplay; fullscreen" allowfullscreen></iframe>\'};bar.appendChild(wb);' +
             'if(E){var eb=document.createElement("button");eb.textContent="Embed";eb.onclick=function(){document.body.innerHTML=\'<iframe src="\'+E+\'" style="position:absolute;top:0;left:0;width:100%;height:100%;border:0;background:#000" allow="autoplay; fullscreen" allowfullscreen></iframe>\'};bar.appendChild(eb)}' +
             'if(Q.length){play(' + defIdx + ')}else if(E){document.body.innerHTML=\'<iframe src="\'+E+\'" style="position:absolute;top:0;left:0;width:100%;height:100%;border:0;background:#000" allowfullscreen></iframe>\'}' +
             '</scr' + 'ipt></body></html>';
