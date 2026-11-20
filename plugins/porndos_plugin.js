@@ -1,6 +1,6 @@
 // =============================================================================
 // VAAPP Plugin: PornDos  (https://www.porndos.com)
-// Author: TheVinhLy  |  Version: 1.0.19
+// Author: TheVinhLy  |  Version: 1.0.20
 // Luồng lấy link:
 //   1. parseMovieDetail → lấy video_id số (vd "9456"), set episode.id = slug|data:9456
 //   2. getUrlDetail(slug, datasend="9456") → trả URL embed: /embed/9456/
@@ -106,7 +106,7 @@ function getManifest() {
     return JSON.stringify({
         "id": "porndos",
         "name": "PornDos",
-        "version": "1.0.19",
+        "version": "1.0.20",
         "description": "Free HD Porn Videos từ porndos.com",
         "author": "TheVinhLy",
         "baseUrl": "https://www.porndos.com",
@@ -371,12 +371,17 @@ function parseMovieDetail(html, apiUrl, datasend) {
 
     var epObj = { id: id, name: "Full", slug: id || "full", datasend: "" };
 
+    // Mô tả chỉ 1 dòng ngắn để không đẩy/che các mục khác trên TV
+    var descText = d ? decodeHtml(d[1]) : "";
+    descText = descText.replace(/\s+/g, " ").trim();
+    if (descText.length > 90) descText = descText.substring(0, 87).replace(/\s+\S*$/, "") + "...";
+
     return JSON.stringify({
         id: id,
         title: title,
         posterUrl: poster,
         backdropUrl: poster,
-        description: d ? decodeHtml(d[1]) : "",
+        description: descText,
         servers: [{
             name: "PornDos",
             episodes: [epObj]
@@ -385,7 +390,8 @@ function parseMovieDetail(html, apiUrl, datasend) {
         status: "Full",
         duration: dur ? dur[1] : "",
         casts: casts.join(", "),
-        category: cats.join(", ")
+        // TV không hiện mục "Diễn viên" -> đưa diễn viên vào đầu mục Thể loại (nút bấm mở trang diễn viên)
+        category: casts.concat(cats).join(", ")
     });
 }
 
