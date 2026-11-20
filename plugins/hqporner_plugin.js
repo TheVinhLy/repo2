@@ -59,7 +59,7 @@ function getManifest() {
     return JSON.stringify({
         "id": "hqporner",
         "name": "HQPorner",
-        "version": "1.0.13",
+        "version": "1.0.14",
         "description": "Video HD 18+ từ hqporner.com",
         "author": "TheVinhLy",
         "baseUrl": "https://hqporner.com",
@@ -340,8 +340,10 @@ function parseMovieDetail(html, apiUrl, datasend) {
         var nm = String(casts[cn2]).match(/^\[([^\]]+)\]/);
         if (nm) castNames.push(nm[1]);
     }
-    var descText = d ? decodeHtml(d[1]) : "";
-    if (castNames.length) descText = "Diễn viên: " + castNames.join(", ") + (descText ? "\n\n" + descText : "");
+    // Mô tả chỉ 1 dòng ngắn để không đẩy/che các mục khác trên TV
+    var descText = castNames.length ? "Diễn viên: " + castNames.join(", ") : (d ? decodeHtml(d[1]) : "");
+    descText = descText.replace(/\s+/g, " ").trim();
+    if (descText.length > 90) descText = descText.substring(0, 87).replace(/\s+\S*$/, "") + "...";
 
     return JSON.stringify({
         id: id,
