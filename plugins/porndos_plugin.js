@@ -110,7 +110,7 @@ function getManifest() {
         "description": "Free HD Porn Videos từ porndos.com",
         "author": "TheVinhLy",
         "baseUrl": "https://www.porndos.com",
-        "iconUrl": "https://raw.githubusercontent.com/TheVinhLy/repo/main/plugins/porndos.ico",
+        "iconUrl": "https://raw.githubusercontent.com/TheVinhLy/repo2/main/plugins/porndos.ico",
         "referrer": "https://www.porndos.com/",
         "isEnabled": true,
         "isAdult": true,

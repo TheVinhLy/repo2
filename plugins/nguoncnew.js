@@ -8,7 +8,7 @@ function getManifest() {
         "name": "Phim NguonC New",
         "version": "1.34",
         "baseUrl": "https://phim.nguonc.com",
-        "iconUrl": "https://raw.githubusercontent.com/TheVinhLy/repo/main/plugins/nguonC.png",
+        "iconUrl": "https://raw.githubusercontent.com/TheVinhLy/repo2/main/plugins/nguonC.png",
         "isEnabled": false,
         "type": "MOVIE",
         "playerType": "embed"

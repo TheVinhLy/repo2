@@ -14,7 +14,7 @@ function getManifest() {
         "description": "Xem phim lẻ, phim bộ tại cobephim.club",
         "author": "TheVinhLy",
         "baseUrl": "https://cobephim.club",
-        "iconUrl": "https://raw.githubusercontent.com/TheVinhLy/repo/main/plugins/cobephim.ico",
+        "iconUrl": "https://raw.githubusercontent.com/TheVinhLy/repo2/main/plugins/cobephim.ico",
         "referrer": "https://cobephim.club/",
         "isEnabled": true,
         "isAdult": false,
