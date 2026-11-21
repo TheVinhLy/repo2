@@ -145,7 +145,7 @@
         {
             "id": "cobephim",
             "name": "CôBe Phim",
-            "version": "1.0.5",
+            "version": "1.0.6",
             "scriptUrl": "https://raw.githubusercontent.com/TheVinhLy/repo2/main/plugins/cobephim_plugin.js",
             "iconUrl": "https://raw.githubusercontent.com/TheVinhLy/repo2/main/plugins/cobephim.ico"
         },
