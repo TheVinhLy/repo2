@@ -1,6 +1,6 @@
 // =============================================================================
 // VAAPP Plugin: Phim4K  (https://phim4k.top)
-// Author: TheVinhLy  |  Version: 1.0.0
+// Author: TheVinhLy  |  Version: 1.0.1
 //
 // Luồng:
 //   Danh sách : /phim-le/ | /phim-bo/ | /phim-chieu-rap/ | /phim-hot/   (trang: /page/N/)
@@ -85,11 +85,11 @@ function getManifest() {
     return JSON.stringify({
         "id": "phim4k",
         "name": "Phim4K",
-        "version": "1.0.0",
+        "version": "1.0.1",
         "description": "Phim lẻ, phim bộ, chiếu rạp từ phim4k.top (phát thẳng, không popup)",
         "author": "TheVinhLy",
         "baseUrl": "https://phim4k.top",
-        "iconUrl": "https://phim4k.top/favicon.ico",
+        "iconUrl": "https://raw.githubusercontent.com/TheVinhLy/repo2/main/plugins/phim4k.ico",
         "referrer": "https://phim4k.top/",
         "isEnabled": true,
         "isAdult": false,

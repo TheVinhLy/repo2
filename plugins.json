@@ -159,14 +159,14 @@
         {
             "id": "tvhay",
             "name": "TVHay",
-            "version": "1.0.0",
+            "version": "1.0.1",
             "scriptUrl": "https://raw.githubusercontent.com/TheVinhLy/repo2/main/plugins/tvhay_plugin.js",
-            "iconUrl": "https://tvhay.buzz/favicon.png"
+            "iconUrl": "https://raw.githubusercontent.com/TheVinhLy/repo2/main/plugins/tvhay.ico"
         },
         {
             "id": "phim4k",
             "name": "Phim4K",
-            "version": "1.0.0",
+            "version": "1.0.1",
             "scriptUrl": "https://raw.githubusercontent.com/TheVinhLy/repo2/main/plugins/phim4k_plugin.js",
             "iconUrl": "https://raw.githubusercontent.com/TheVinhLy/repo2/main/plugins/phim4k.ico"
         }

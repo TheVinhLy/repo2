@@ -1,6 +1,6 @@
 // =============================================================================
 // VAAPP Plugin: TVHay  (https://tvhay.buzz)
-// Author: TheVinhLy  |  Version: 1.0.0
+// Author: TheVinhLy  |  Version: 1.0.1
 //
 // Luồng:
 //   Danh sách  : /phim-moi | /phim-bo | /phim-le | /short-drama | /the-loai/x | /quoc-gia/x | /nam/yyyy  (?page=N)
@@ -118,11 +118,11 @@ function getManifest() {
     return JSON.stringify({
         "id": "tvhay",
         "name": "TVHay",
-        "version": "1.0.0",
+        "version": "1.0.1",
         "description": "Phim thuyết minh, lồng tiếng từ tvhay.buzz (phát thẳng, không popup)",
         "author": "TheVinhLy",
         "baseUrl": "https://tvhay.buzz",
-        "iconUrl": "https://tvhay.buzz/favicon.png",
+        "iconUrl": "https://raw.githubusercontent.com/TheVinhLy/repo2/main/plugins/tvhay.ico",
         "referrer": "https://tvhay.buzz/",
         "isEnabled": true,
         "isAdult": false,
